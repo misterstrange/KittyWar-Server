@@ -2,19 +2,54 @@
 <html lang="en">
 
 <head>
-    <title> Kitty War </title>
+    <link rel = "stylesheet" type = "text/css" href = "//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <title> Kitty War - Register </title>
 </head>
 
-<form action="/KittyWar/register/" method="post">
+<body>
 
-    {% csrf_token %}
-    {{ register_form.as_p }}
-    <input type="submit" value="Submit" />
+<div class = "container">
+    
+    {% if message %}
+    <div class="text-center">
+        <span class="label label-warning"> {{ message }} </span>
+    </div>
+    {% endif %}
 
-</form>
+    <form action="/KittyWar/register/" method="post">
 
-<a href=""> Log In </a>
+        {% csrf_token %}
 
-<p> {{ message }} </p>
+        {% for field in register_form %}
+        <div class="form-group row">
+            <div class="form_control">
+                <label for="{{ field.id_for_label }}"
+                    class="col-sm-2 col-sm-offset-4">
+ 
+                    {{ field.label }}
+                </label>
+                <div class="col-sm-2">
+                    {{ field }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
 
+        <div class="form-group text-center">
+            <button type="Submit" class="btn btn-primary"> Submit </button>
+        </div>
+
+    </form>
+
+    <div class="text-center">
+        <a href="{% url 'login' %}"> Log In </a>
+    </div>
+
+</div>
+
+<footer>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</footer>
+
+</body>
 </html>

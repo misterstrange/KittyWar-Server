@@ -13,3 +13,8 @@ class RegistrationForm(forms.Form):
         passwordc = cleaned_data.get("passwordc")
         if password != passwordc:
             raise forms.ValidationError("Password fields must be identical")
+
+class LoginForm(forms.Form):
+
+    username = forms.CharField(max_length = 16)
+    password = forms.CharField(max_length = 16, widget = forms.PasswordInput)

@@ -1,53 +1,49 @@
 <!DOCTYPE html>
+
+{% load static %}
+
 <html lang="en">
 
 <head>
-    <link rel = "stylesheet" type = "text/css" href = "//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    
+    <link rel = "stylesheet" type = "text/css" href = "//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
+    <link rel = "stylesheet" type = "text/css" href = "{% static 'kittywar.css' %}" />
     <title> Kitty War - Register </title>
 </head>
 
 <body>
 
-<div class = "container">
-    
-    {% if message %}
-    <div class="text-center">
-        <span class="label label-warning"> {{ message }} </span>
-    </div>
-    {% endif %}
+<div class = "container text-center">  
+    <div class="jumbotron login">
 
-    <form action="/KittyWar/register/" method="post">
+        {% if message %}
+        <div class="text-center">
+            <span class="label label-warning"> {{ message }} </span>
+        </div>
+        {% endif %}
 
-        {% csrf_token %}
+        <form action="/KittyWar/register/" method="post">
 
-        {% for field in register_form %}
-        <div class="form-group row">
-            <div class="form_control">
-                <label for="{{ field.id_for_label }}"
-                    class="col-sm-2 col-sm-offset-4">
- 
-                    {{ field.label }}
-                </label>
-                <div class="col-sm-2">
-                    {{ field }}
-                </div>
+            {% csrf_token %}
+
+            <table align="center">
+                {{ register_form }}
+            </table>
+
+
+            <div class="form-group text-center">
+                <button type="Submit" class="btn btn-primary"> Submit </button>
             </div>
-        </div>
-        {% endfor %}
 
-        <div class="form-group text-center">
-            <button type="Submit" class="btn btn-primary"> Submit </button>
-        </div>
+        </form>
 
-    </form>
+        <a href="{% url 'kittywar:login' %}">Log in</a>
 
-    <div class="text-center">
-        <a href="{% url 'login' %}"> Log In </a>
     </div>
-
 </div>
 
 <footer>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 </footer>
 

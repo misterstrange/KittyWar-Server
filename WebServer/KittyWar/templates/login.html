@@ -1,7 +1,51 @@
 <!DOCTYPE html>
+
+{% load static %}
+
 <html lang="en">
 
-{{ message }}
-<p> SIGN IN </p>
+<head>
+    
+    <link rel = "stylesheet" type = "text/css" href = "//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
+    <link rel = "stylesheet" type = "text/css" href = "{% static 'kittywar.css' %}" />
+    <title> Kitty War - Log in </title>
+</head>
 
+<body>
+
+<div class = "container text-center">  
+    <div class="jumbotron login">
+
+        {% if message %}
+        <div class="text-center">
+            <span class="label label-success"> {{ message }} </span>
+        </div>
+        {% endif %}
+
+        <form action="/Kittywar/login/" method="post">
+
+            {% csrf_token %}
+
+            <table align="center">
+                {{ login_form }}
+            </table>
+
+
+            <div class="form-group text-center">
+                <button type="Submit" class="btn btn-primary"> Submit </button>
+            </div>
+
+        </form>
+
+        <a href="{% url 'kittywar:register' %}"> Register </a>
+
+    </div>
+</div>
+
+<footer>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</footer>
+
+</body>
 </html>

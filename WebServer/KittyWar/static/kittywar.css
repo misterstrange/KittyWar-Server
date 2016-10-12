@@ -1,0 +1,15 @@
+body {
+    background-color: #BDBDBD;
+}
+
+th {
+    padding: 0.5em;
+}
+
+td {
+    padding: 0.5em;
+}
+
+.login {
+     margin: 5em;
+}

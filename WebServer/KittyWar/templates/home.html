@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+
+{% load static %}
+
+<html lang="en">
+
+<head>
+    
+    <link rel = "stylesheet" type = "text/css" href = "//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" />
+    <link rel = "stylesheet" type = "text/css" href = "{% static 'kittywar.css' %}" />
+    <title> Kitty War </title>
+</head>
+
+<body>
+
+<div class = "container text-center">  
+    <h1> User Home Page </h1>
+    <a href="{% url 'kittywar:logout' %}"> Log out </a>
+</div>
+
+<footer>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</footer>
+
+</body>
+</html>

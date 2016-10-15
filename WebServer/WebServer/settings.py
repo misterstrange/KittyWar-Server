@@ -76,8 +76,12 @@ WSGI_APPLICATION = 'WebServer.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'deisume_kittywar',
+        'USER': 'deisume_kittywar',
+        'PASSWORD': 'kittywar',
+        'HOST': '69.195.124.204',
+        'PORT': '3306',
     }
 }
 

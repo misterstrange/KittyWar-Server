@@ -5,20 +5,9 @@ from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread, Event
 from queue import Queue
 from sessions import *
-import MySQLdb
 
 
 def main():
-
-    # Test database connection and print version
-    database = MySQLdb.connect('69.195.124.204', 'deisume_kittywar', 'kittywar', 'deisume_kittywar')
-    cursor = database.cursor()
-    cursor.execute("SELECT VERSION()")
-    data = cursor.fetchone()
-
-    print("Database version : %s " % data)
-    database.close()
-    # End test for database
 
     # Create server
     server = socket(AF_INET, SOCK_STREAM)
@@ -29,7 +18,7 @@ def main():
     lobby = Queue()
 
     # Start match making thread
-    matchmaker_thread = Thread(target = matchmaker, args = (match_event, lobby))
+    matchmaker_thread = Thread(target=matchmaker, args=(match_event, lobby))
     matchmaker_thread.daemon = True
     matchmaker_thread.start()
 

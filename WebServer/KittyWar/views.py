@@ -1,17 +1,19 @@
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse, HttpResponseBadRequest
 from django.shortcuts import render
-from django.http import HttpResponseRedirect, HttpResponse
 from django.contrib import auth
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-
+import json
 
 from .forms import RegistrationForm, LoginForm
 
-### Index View - redirects to registration
+
+# Index View - redirects to registration
 def index_view(request):
     return HttpResponseRedirect('/Kittywar/register/')
 
-### Registration View
+
+# Registration View
 def register_view(request):
 
     if request.method == 'POST':
@@ -33,7 +35,7 @@ def register_view(request):
             password = form.cleaned_data['password']
             User.objects.create_user(username, email, password)
 
-            return HttpResponseRedirect('/Kittywar/login/?q=Registration Successful')
+            return HttpResponseRedirect('/Kittywar/login/?s=Registration Successful')
 
         else:
             message = 'Passwords fields must match'
@@ -42,11 +44,33 @@ def register_view(request):
     
     else:
 
-        # If not POST then render blank form        
+        # If not POST then render blank form
         form = RegistrationForm()
         return render(request, 'register.html', {'register_form': form})
 
-### Login View
+
+def register_mobile_view(request):
+
+    if request.method == 'POST':
+
+        json_data = json.loads(request.body.decode('utf-8'))
+        print(json_data)
+
+        username = json_data['username']
+        if User.objects.filter(username=username).exists():
+            return JsonResponse(dict(status='409'))
+
+        email = json_data['email']
+        password = json_data['password']
+        User.objects.create_user(username, email, password)
+
+        return JsonResponse(dict(status='201'))
+
+    else:
+        return HttpResponseBadRequest("Bad Request - 409")
+
+
+# Login View
 def login_view(request):
 
     if request.method == 'POST':
@@ -71,17 +95,19 @@ def login_view(request):
     else:
 
         # If not POST then render blank form
-        message = request.GET.get('q', '')
+        message = request.GET.get('s', '')
         form = LoginForm()
         context = {'login_form': form, 'message': message}
         return render(request, 'login.html', context)
 
-### Home View
+
+# Home View
 @login_required(login_url = '/Kittywar/login/')
 def home_view(request):
     return render(request, 'home.html')
 
-### Logout View
+
+# Logout View
 def logout_view(request):
 
     auth.logout(request)

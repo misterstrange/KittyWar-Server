@@ -4,6 +4,7 @@ from django.contrib import auth
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 import json
+from django.views.decorators.csrf import csrf_exempt
 
 from .forms import RegistrationForm, LoginForm
 
@@ -48,7 +49,7 @@ def register_view(request):
         form = RegistrationForm()
         return render(request, 'register.html', {'register_form': form})
 
-
+@csrf_exempt
 def register_mobile_view(request):
 
     if request.method == 'POST':

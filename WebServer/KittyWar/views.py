@@ -10,7 +10,7 @@ from .forms import RegistrationForm, LoginForm
 
 # Index View - redirects to registration
 def index_view(request):
-    return HttpResponseRedirect('/Kittywar/register/')
+    return HttpResponseRedirect('/kittywar/register/')
 
 
 # Registration View
@@ -35,13 +35,13 @@ def register_view(request):
             password = form.cleaned_data['password']
             User.objects.create_user(username, email, password)
 
-            return HttpResponseRedirect('/Kittywar/login/?s=Registration Successful')
+            return HttpResponseRedirect('/kittywar/login/?s=Registration Successful')
 
         else:
             message = 'Passwords fields must match'
             context = {'register_form': form, 'message': message}
             return render(request, 'register.html', context)
-    
+
     else:
 
         # If not POST then render blank form
@@ -82,16 +82,16 @@ def login_view(request):
             username = form.cleaned_data['username']
             password = form.cleaned_data['password']
             user = auth.authenticate(username=username, password=password)
-            
+
             if user is not None:
 
                 auth.login(request, user)
-                return HttpResponseRedirect('/Kittywar/home/')
+                return HttpResponseRedirect('/kittywar/home/')
             else:
                 message = 'Invalid username or password'
                 context = {'login_form': form, 'message': message}
                 return render(request, 'login.html', context)
-    
+
     else:
 
         # If not POST then render blank form
@@ -102,7 +102,7 @@ def login_view(request):
 
 
 # Home View
-@login_required(login_url = '/Kittywar/login/')
+@login_required(login_url = '/kittywar/login/')
 def home_view(request):
     return render(request, 'home.html')
 
@@ -111,4 +111,4 @@ def home_view(request):
 def logout_view(request):
 
     auth.logout(request)
-    return HttpResponseRedirect('/Kittywar/login/')
+    return HttpResponseRedirect('/kittywar/login/')

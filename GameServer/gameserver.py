@@ -6,25 +6,9 @@ from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread, Event
 from queue import Queue
 from sessions import *
-import pymysql
 
 
 def main():
-
-    # Test database connection and print version
-    db = pymysql.connect(host='69.195.124.204',
-                         user='deisume_kittywar',
-                         password='kittywar',
-                         db='deisume_kittywar')
-    try:
-        with db.cursor() as cursor:
-            sql = "SELECT VERSION()"
-            cursor.execute(sql)
-            data = cursor.fetchone()
-            print("Database version: %s " % data)
-    finally:
-        db.close()
-    # End test for database
 
     # Create server
     server = socket(AF_INET, SOCK_STREAM)
@@ -35,7 +19,7 @@ def main():
     lobby = Queue()
 
     # Start match making thread
-    matchmaker_thread = Thread(target = matchmaker, args = (match_event, lobby))
+    matchmaker_thread = Thread(target=matchmaker, args=(match_event, lobby))
     matchmaker_thread.daemon = True
     matchmaker_thread.start()
 
@@ -73,4 +57,3 @@ def matchmaker(match_event, lobby):
 
 if __name__ == "__main__":
     main()
-

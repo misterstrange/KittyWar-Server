@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Kittywar game server
 # TCP Port 2056
 
@@ -5,6 +6,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 from threading import Thread, Event
 from queue import Queue
 from sessions import *
+import pymysql
 
 
 def main():

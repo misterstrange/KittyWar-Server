@@ -1,8 +1,6 @@
 from threading import Thread
 from time import sleep
-from struct import pack, unpack
-import MySQLdb
-import re
+import pymysql
 
 
 class GameThread(Thread):
@@ -15,7 +13,7 @@ class GameThread(Thread):
     @staticmethod
     def receive_data(client, data_size):
 
-        received_data = b''
+        received_data = bytearray()
         while len(received_data) < data_size:
 
             packet = client.recv(data_size - len(received_data))
@@ -28,18 +26,19 @@ class GameThread(Thread):
         return received_data
 
     @staticmethod
-    def process_data(data):
+    def parse_request(data):
 
-        data = unpack('!I', data)[0]
-        flag = 0xff000000 & data
-        flag >>= 24
-        size = 0x00ffffff & data
+        flag = data[0]
+        token = data[1:25].decode('utf-8')
+        size = int.from_bytes(data[25:28], byteorder='big')
 
-        return flag, size
+        return flag, token, size
 
     @staticmethod
     def database_connection():
-        return MySQLdb.connect('69.195.124.204', 'deisume_kittywar', 'kittywar', 'deisume_kittywar')
+        return pymysql.connect(
+            host='69.195.124.204', user='deisume_kittywar',
+            password='kittywar', db='deisume_kittywar', autocommit=True)
 
 
 class Session(GameThread):
@@ -48,11 +47,14 @@ class Session(GameThread):
 
         GameThread.__init__(self)
 
-        self.match = None
+        self.authenticated = False
+        self.userident = []
         self.client = client_info[0]
         self.client_address = client_info[1]
+
         self.lobby = lobby
         self.match_event = match_event
+        self.match = None
 
     def run(self):
 
@@ -61,13 +63,16 @@ class Session(GameThread):
         while True:
 
             # Receive flag and incoming data size
-            data = self.receive_data(self.client, 4)
+            data = self.receive_data(self.client, 28)
             if data is None: break
 
-            request = self.process_data(data)
+            request = self.parse_request(data)
             status = self.process_request(request)
             if not status: break
 
+            break;
+
+        if self.authenticated: self.process_request((1, 0, 0))
         print("Client disconnected")
         self.client.close()
 
@@ -91,21 +96,55 @@ class Session(GameThread):
 
     def process_request(self, request):
 
-        data = self.receive_data(self.client, request[1])
-        if data is None: return 0
-
-        data = data.decode('utf-8')
-        print(data)
-
         flag = request[0]
+
+        # log in
         if flag == 0:
 
-            expr = "^username=(.+)&password=(.+)$"
-            match = re.search(expr, data)
-            print(match.group(1))
-            print(match.group(2))
+            username = self.receive_data(self.client, request[2])
+            if username is None: return False;
+            username = username.decode('utf-8')
 
-        return 1
+            sql = [
+                'SELECT id FROM auth_user WHERE username=%s;',
+                'SELECT token FROM KittyWar_userprofile WHERE user_id=%s;'
+            ]
+
+            db = self.database_connection()
+            try:
+                with db.cursor() as cursor:
+
+                    cursor.execute(sql[0], username)
+                    result = cursor.fetchone()
+                    cursor.execute(sql[1], result)
+                    token = cursor.fetchone()
+
+            finally:
+                db.close()
+
+            if request[1] == token[0]:
+
+                self.userident.append(username)
+                self.userident.append(result[0])
+                self.userident.append(token[0])
+                self.authenticated = True
+
+                print(self.userident[0] + ' authenticated')
+
+        # log out
+        elif flag == 1:
+
+            sql = "UPDATE KittyWar_userprofile SET token='' WHERE user_id=%s;"
+
+            db = self.database_connection()
+            try:
+                with db.cursor() as cursor:
+                    cursor.execute(sql, self.userident[1])
+
+            finally:
+                db.close()
+
+        return True
 
 
 class Match(GameThread):

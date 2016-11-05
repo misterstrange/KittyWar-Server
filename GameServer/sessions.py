@@ -1,7 +1,7 @@
 from threading import Thread
 from time import sleep
 from enum import IntEnum
-import gameserver
+import socket as sock
 import pymysql
 
 
@@ -21,6 +21,13 @@ class Flags(IntEnum):
 
 # Generic game thread for session and match threads / holds basic functionality between the two
 class GameThread(Thread):
+
+    server_running = True
+
+    # Variables used by all sessions that must be set for it to work
+    log_queue = None
+    lobby = None
+    match_event = None
 
     def __init__(self):
 
@@ -45,10 +52,14 @@ class GameThread(Thread):
     @staticmethod
     def receive_data(client, data_size):
 
+        packet = b''
         received_data = bytearray()
         while len(received_data) < data_size:
 
-            packet = client.recv(data_size - len(received_data))
+            try:
+                packet = client.recv(data_size - len(received_data))
+            except ConnectionResetError:
+                pass
 
             if not packet:
                 return None
@@ -64,7 +75,7 @@ class GameThread(Thread):
         try:
             client.sendall(data)
         except:
-            print("Error sending data, closed connection")
+            pass
 
     @staticmethod
     def parse_request(data):
@@ -96,7 +107,7 @@ class GameThread(Thread):
 
 class Session(GameThread):
 
-    def __init__(self, client_info, lobby, match_event):
+    def __init__(self, client_info):
 
         GameThread.__init__(self)
 
@@ -105,16 +116,14 @@ class Session(GameThread):
         self.client = client_info[0]
         self.client_address = client_info[1]
 
-        self.lobby = lobby
-        self.match_event = match_event
         self.match = None
 
     # Session Thread loop - runs until server is being shutdown or client disconnects
     def run(self):
 
-        gameserver.message_queue.put("New session started")
+        self.log_queue.put("New session started")
 
-        while True:
+        while self.server_running:
 
             # Receive flag and incoming data size
             data = self.receive_data(self.client, 28)
@@ -131,9 +140,15 @@ class Session(GameThread):
         if self.authenticated:
             self.logout()
 
-        #System.message_queue.put("Client disconnected")
-        #System.message_queue.put("Session thread " + str(self.ident) + " ending")
+        self.client.shutdown(sock.SHUT_RDWR)
         self.client.close()
+
+        self.log_queue.put("Client disconnected")
+        self.log_queue.put("Session thread " + str(self.ident) + " ending")
+
+    def kill(self):
+        self.client.shutdown(sock.SHUT_RDWR)
+        GameThread.server_running = False
 
     def process_request(self, request):
 
@@ -181,17 +196,17 @@ class Session(GameThread):
                 self.useridentity.append(token[0])
                 self.authenticated = True
 
-                #System.message_queue.put(username + " authenticated")
+                self.log_queue.put(username + " authenticated")
                 response.append(Flags.SUCCESS.packet())
 
             else:
-                #System.message_queue.put(username + " failed authentication")
+                self.log_queue.put(username + " failed authentication")
                 response.append(Flags.FAILURE.packet())
 
             self.send_data(self.client, response)
 
         else:
-            #System.message_queue.put("Username does not exist, closing connection")
+            self.log_queue.put("Username does not exist, closing connection")
             return False
 
         return True
@@ -208,7 +223,7 @@ class Session(GameThread):
             self.sql_query(sql_stmt, self.useridentity[1])
             self.authenticated = False
 
-            #System.message_queue.put(self.useridentity[0] + " logging out and closing connection")
+            self.log_queue.put(self.useridentity[0] + " logging out and closing connection")
 
             response.append(Flags.SUCCESS.packet())
             self.send_data(self.client, response)
@@ -222,7 +237,7 @@ class Session(GameThread):
     # Finds a match and records match results once match is finished
     def find_match(self):
 
-        #System.message_queue.put(self.useridentity[0] + " is finding a match")
+        self.log_queue.put(self.useridentity[0] + " is finding a match")
         self.lobby.put(self)
 
         # Periodically notify matchmaker until match is found

@@ -5,17 +5,15 @@
 import socket as sock
 from threading import Thread, Event
 from queue import Queue
-
 import sessions as session
 import tkinter
 import tkinter.scrolledtext
 
-message_queue = Queue()
+server_running = True
+log_queue = Queue()
 
 
 def main():
-
-    global server_running
 
     # Create server
     server = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
@@ -34,15 +32,21 @@ def main():
     server.bind(server_address)
     server.settimeout(1)
     server.listen(5)
-    server_running = True
+
+    # Set GameThread variables for debugging and matchmaking to apply to all sessions
+    session.GameThread.log_queue = log_queue
+    session.GameThread.lobby = lobby
+    session.GameThread.match_event = match_event
 
     # Create thread dedicated to listening for clients
-    polling_thread = Thread(target=poll_connections, args=(server, match_event, lobby))
+    polling_thread = Thread(target=poll_connections, args=(server,))
     polling_thread.daemon = True
     polling_thread.start()
 
     # Server GUI code
     root = tkinter.Tk()
+    root.geometry("500x500")
+    root.title("KittyWar Game Server")
 
     # Create text display
     server_display = tkinter.scrolledtext.ScrolledText(root)
@@ -54,7 +58,6 @@ def main():
     shutdown_button.pack()
 
     # Start GUI and set update to every 100ms
-    root.geometry("500x500")
     root.after(100, update_display, (root, server_display))
     root.mainloop()
 
@@ -64,35 +67,43 @@ def update_display(root_display):
     root = root_display[0]
     server_display = root_display[1]
 
-    queue_length = message_queue.qsize()
+    queue_length = log_queue.qsize()
     for i in range(0, queue_length):
 
         server_display.config(state=tkinter.NORMAL)
-        server_display.insert(tkinter.END,  message_queue.get() + "\n")
+        server_display.insert(tkinter.END, log_queue.get() + "\n")
         server_display.pack()
         server_display.config(state=tkinter.DISABLED)
 
     root.after(100, update_display, (root, server_display))
 
 
-def poll_connections(server, match_event, lobby):
+def poll_connections(server):
 
-    message_queue.put("Server started")
+    log_queue.put("Server started")
+    connections = []
 
     while server_running:
 
+        # Occasionlly timeout from polling to check if the server is still running
         try:
             client, client_address = server.accept()
         except sock.timeout:
             continue
 
-        message_queue.put("Client connected from address: " + client_address[0])
-        new_session = session.Session((client, client_address), lobby, match_event)
+        log_queue.put("Client connected from address: " + client_address[0])
+        new_session = session.Session((client, client_address))
         new_session.start()
 
-    message_queue.put("Server stopped")
+        connections.append(new_session)
+
+    for connection in connections:
+        if connection.is_alive():
+            connection.kill()
+
     server.shutdown(sock.SHUT_RDWR)
     server.close()
+    log_queue.put("Server stopped")
 
 
 def match_maker(match_event, lobby):
@@ -118,6 +129,7 @@ def match_maker(match_event, lobby):
 
 def shutdown_server():
 
+    log_queue.put("Server stopping")
     global server_running
     server_running = False
 

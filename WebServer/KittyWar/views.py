@@ -66,7 +66,7 @@ def register_mobile_view(request):
 
         email = json_data['email']
         password = json_data['password']
-        User.objects.create_user(username, email, password)
+        user = User.objects.create_user(username, email, password)
         userprofile = UserProfile(user=user)
         userprofile.save()
 

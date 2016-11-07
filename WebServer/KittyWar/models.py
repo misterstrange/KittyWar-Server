@@ -29,3 +29,19 @@ class BasicCards(models.Model):
     attribute_id = models.CharField(max_length=10)
     description = models.CharField(max_length=100)
     flavor = models.CharField(max_length=100)
+
+
+class AbilityCards(models.Model):
+    CARD_PHASES = (
+        (0, 'Any'),
+        (1, 'Prelude'),
+        (2, 'Enacting strategies'),
+        (3, 'Showing Cards'),
+        (4, 'Strategy settlement'),
+        (5, 'Postlude'),
+    )
+    title = models.CharField(max_length=10)
+    attribute_id = models.CharField(max_length=30)
+    phase = models.PositiveIntegerField(1, choices=CARD_PHASES, default=0)
+    description = models.CharField(max_length=100)
+    flavor = models.CharField(max_length=100)

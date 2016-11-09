@@ -75,7 +75,7 @@ class GameThread(Thread):
 
         try:
             client.sendall(data)
-        except RuntimeError:
+        except:
             pass
 
     @staticmethod
@@ -140,19 +140,19 @@ class Session(GameThread):
 
         # Start shutting down session thread
         self.logout()
-
-        try:
-            self.client.shutdown(sock.SHUT_RDWR)
-        except OSError:
-            pass
-
+        self.kill()
         self.client.close()
 
         self.log_queue.put(self.userinfo['username'] + " disconnected")
         self.log_queue.put("Session thread for " + self.userinfo['username'] + " ending")
 
     def kill(self):
-        self.client.shutdown(sock.SHUT_RDWR)
+
+        try:
+            self.client.shutdown(sock.SHUT_RDWR)
+        except OSError:
+            pass
+
         GameThread.server_running = False
 
     def process_request(self, request):
@@ -195,6 +195,7 @@ class Session(GameThread):
 
         # Convert username to string by decoding
         username = username.decode('utf-8')
+        self.log_queue.put(username)
         self.userinfo['username'] = username
 
         sql_stmts = [

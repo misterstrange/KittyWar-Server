@@ -14,6 +14,7 @@ class Flags(IntEnum):
     LOGIN = 0
     LOGOUT = 1
     FIND_MATCH = 2
+    USER_PROFILE = 3
 
     def packet(self):
         return self.value & 0xFF
@@ -32,7 +33,7 @@ class GameThread(Thread):
     def __init__(self):
 
         Thread.__init__(self)
-        self.daemon = True
+        self.daemon = False
 
     @staticmethod
     # Translates an int to 3 bytes
@@ -74,7 +75,7 @@ class GameThread(Thread):
 
         try:
             client.sendall(data)
-        except:
+        except RuntimeError:
             pass
 
     @staticmethod
@@ -84,7 +85,8 @@ class GameThread(Thread):
         token = data[1:25].decode('utf-8')
         size = int.from_bytes(data[25:28], byteorder='big')
 
-        return flag, token, size
+        request = {'flag': flag, 'token': token, 'size': size}
+        return request
 
     @staticmethod
     def sql_query(query, string_insert):
@@ -112,7 +114,7 @@ class Session(GameThread):
         GameThread.__init__(self)
 
         self.authenticated = False
-        self.useridentity = []
+        self.userinfo = {'username': 'Anonymous'}
         self.client = client_info[0]
         self.client_address = client_info[1]
 
@@ -136,15 +138,18 @@ class Session(GameThread):
             if not successful:
                 break
 
-        # If the user has disconnected and was authenticated force logout
-        if self.authenticated:
-            self.logout()
+        # Start shutting down session thread
+        self.logout()
 
-        self.client.shutdown(sock.SHUT_RDWR)
+        try:
+            self.client.shutdown(sock.SHUT_RDWR)
+        except OSError:
+            pass
+
         self.client.close()
 
-        self.log_queue.put("Client disconnected")
-        self.log_queue.put("Session thread " + str(self.ident) + " ending")
+        self.log_queue.put(self.userinfo['username'] + " disconnected")
+        self.log_queue.put("Session thread for " + self.userinfo['username'] + " ending")
 
     def kill(self):
         self.client.shutdown(sock.SHUT_RDWR)
@@ -152,8 +157,10 @@ class Session(GameThread):
 
     def process_request(self, request):
 
+        self.log_queue.put("Request: " + str(request))
+
         success = True
-        flag = request[0]
+        flag = request['flag']
 
         # Login
         if flag == Flags.LOGIN:
@@ -167,33 +174,44 @@ class Session(GameThread):
         elif flag == Flags.FIND_MATCH:
             success = self.find_match()
 
+        # Grab user profile information
+        elif flag == Flags.USER_PROFILE:
+            success = self.user_profile()
+
         return success
 
     # Verifies user has actually logged through token authentication
     def login(self, request):
 
-        # Prepare a client response in the event it is needed
+        # Prepare client response
         response = self.generate_response(Flags.LOGIN.packet(), self.int_3byte(1))
 
-        username = self.receive_data(self.client, request[2])
+        # Retreive username from request body
+        username = self.receive_data(self.client, request['size'])
+
+        # If the user does not send username or connection error close connection
         if username is None:
             return False
+
+        # Convert username to string by decoding
         username = username.decode('utf-8')
+        self.userinfo['username'] = username
 
         sql_stmts = [
             'SELECT id FROM auth_user WHERE username=%s;',
             'SELECT token FROM KittyWar_userprofile WHERE user_id=%s;'
         ]
 
+        # Retreive user id tied to username
         user_id = self.sql_query(sql_stmts[0], username)
         if user_id is not None:
 
+            # With user id query users login token
             token = self.sql_query(sql_stmts[1], user_id)
-            if request[1] == token[0]:
+            if token is not None and request['token'] == token[0]:
 
-                self.useridentity.append(username)
-                self.useridentity.append(user_id[0])
-                self.useridentity.append(token[0])
+                self.userinfo['userid'] = user_id[0]
+                self.userinfo['token'] = token[0]
                 self.authenticated = True
 
                 self.log_queue.put(username + " authenticated")
@@ -203,12 +221,13 @@ class Session(GameThread):
                 self.log_queue.put(username + " failed authentication")
                 response.append(Flags.FAILURE.packet())
 
-            self.send_data(self.client, response)
-
         else:
-            self.log_queue.put("Username does not exist, closing connection")
+            # Username is verified through django server so force close connection
+            self.log_queue.put("No username/id found for " + username +
+                               ", force closing connection")
             return False
 
+        self.send_data(self.client, response)
         return True
 
     # Logs the user out by deleting their token and ending the session
@@ -220,24 +239,28 @@ class Session(GameThread):
         if self.authenticated:
 
             sql_stmt = "UPDATE KittyWar_userprofile SET token='' WHERE user_id=%s;"
-            self.sql_query(sql_stmt, self.useridentity[1])
+            self.sql_query(sql_stmt, self.userinfo['userid'])
             self.authenticated = False
 
-            self.log_queue.put(self.useridentity[0] + " logging out and closing connection")
-
+            self.log_queue.put(self.userinfo['username'] + " logged out")
             response.append(Flags.SUCCESS.packet())
-            self.send_data(self.client, response)
 
         else:
             response.append(Flags.FAILURE.packet())
-            self.send_data(self.client, response)
 
+        self.send_data(self.client, response)
         return False
+
+    # Grab user profile information from database and send back to the client
+    def user_profile(self):
+
+        sql_stmts = []
+        return True
 
     # Finds a match and records match results once match is finished
     def find_match(self):
 
-        self.log_queue.put(self.useridentity[0] + " is finding a match")
+        self.log_queue.put(self.userinfo['username'] + " is finding a match")
         self.lobby.put(self)
 
         # Periodically notify matchmaker until match is found

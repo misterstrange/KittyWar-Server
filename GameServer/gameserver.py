@@ -91,7 +91,7 @@ def poll_connections(server):
         except sock.timeout:
             continue
 
-        log_queue.put("Client connected from address: " + client_address[0])
+        log_queue.put("Anonymous user connected from address: " + client_address[0])
         new_session = session.Session((client, client_address))
         new_session.start()
 

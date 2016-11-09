@@ -40,6 +40,10 @@ def register_view(request):
             userprofile = UserProfile(user=user)
             userprofile.save()
 
+            # Adds the default cards to the userprofile
+            catcards = CatCard.objects.all().filter(default=1)
+            userprofile.cat_owned.add(catcards)
+
             return HttpResponseRedirect('/kittywar/login/?s=Registration Successful')
 
         else:
@@ -69,6 +73,10 @@ def register_mobile_view(request):
         user = User.objects.create_user(username, email, password)
         userprofile = UserProfile(user=user)
         userprofile.save()
+        
+        # Adds the default cards to the userprofile
+        catcards = CatCard.objects.all().filter(default=1)
+        userprofile.cat_owned.add(catcards)
 
         return JsonResponse(dict(status='201'))
 

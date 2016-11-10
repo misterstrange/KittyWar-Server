@@ -183,7 +183,14 @@ class Session(Thread):
         Session.log_queue.put("Request: " + str(request))
 
         flag = request['flag']
-        success = request_map[flag](self, request)
+
+        success = True
+        try:
+            success = request_map[flag](self, request)
+        except KeyError:
+            Session.log_queue.put(
+                "Server does not support flag " + str(flag))
+
         return success
 
     # Verifies user has actually logged through token authentication

@@ -137,7 +137,7 @@ class Session(Thread):
         self.daemon = False
 
         self.authenticated = False
-        self.userinfo = {'username': 'Anonymous'}
+        self.userprofile = {'username': 'Anonymous'}
         self.client = client_info[0]
         self.client_address = client_info[1]
 
@@ -166,9 +166,9 @@ class Session(Thread):
         self.kill()
         self.client.close()
 
-        Session.log_queue.put(self.userinfo['username'] + " disconnected")
+        Session.log_queue.put(self.userprofile['username'] + " disconnected")
         Session.log_queue.put(
-            "Session thread for " + self.userinfo['username'] + " ending")
+            "Session thread for " + self.userprofile['username'] + " ending")
 
     def kill(self):
 
@@ -184,14 +184,33 @@ class Session(Thread):
 
         flag = request['flag']
 
-        success = True
+        '''
+        # Check user identity for sensitive operations
+        if flag >= Flags.FIND_MATCH:
+            if not self.verified(request):
+                Session.log_queue.put(
+                    self.userprofile['username'] + " is not authorized to use flag " +
+                    str(flag) + ", closing this connection")
+                return False
+        '''
+
+        success = False
         try:
             success = request_map[flag](self, request)
         except KeyError:
             Session.log_queue.put(
-                "Server does not support flag " + str(flag))
+                "Server does not support flag " + str(flag)
+                + ", closing this connection")
 
         return success
+
+    def verified(self, request):
+
+        if self.authenticated:
+            if request['token'] == self.userprofile['token']:
+                return True
+
+        return False
 
     # Verifies user has actually logged through token authentication
     def login(self, request=None):
@@ -209,7 +228,7 @@ class Session(Thread):
         # Convert username to string by decoding
         username = username.decode('utf-8')
         Session.log_queue.put("Body: " + username)
-        self.userinfo['username'] = username
+        self.userprofile['username'] = username
 
         sql_stmts = [
             'SELECT id FROM auth_user WHERE username=\'{}\';',
@@ -226,8 +245,8 @@ class Session(Thread):
 
             if result and request['token'] == result[0]['token']:
 
-                self.userinfo['userid'] = user_id
-                self.userinfo['token'] = result[0]['token']
+                self.userprofile['userid'] = user_id
+                self.userprofile['token'] = result[0]['token']
                 self.authenticated = True
 
                 Session.log_queue.put(username + " authenticated")
@@ -254,11 +273,11 @@ class Session(Thread):
 
         if self.authenticated:
 
-            sql_stmt = "UPDATE KittyWar_userprofile SET token='' WHERE user_id=\'{}\';"
-            Network.sql_query(sql_stmt.format(self.userinfo['userid']))
+            sql_stmt = 'UPDATE KittyWar_userprofile SET token='' WHERE user_id=\'{}\';'
+            Network.sql_query(sql_stmt.format(self.userprofile['userid']))
             self.authenticated = False
 
-            Session.log_queue.put(self.userinfo['username'] + " logged out")
+            Session.log_queue.put(self.userprofile['username'] + " logged out")
             response.append(Flags.SUCCESS)
 
         else:
@@ -267,8 +286,32 @@ class Session(Thread):
         Network.send_data(self.client, response)
         return False
 
-    # Grab user profile information from database and send back to the client
+    # Grab user profile information from database
+    # then save it and send it back to the client
     def user_profile(self, request=None):
+
+        sql_stmts = [
+            'SELECT draw,loss,wins,matches FROM KittyWar_userprofile WHERE user_id=\'{}\';',
+            'SELECT catcard_id FROM KittyWar_userprofile_cats WHERE userprofile_id=\'{}\';'
+        ]
+
+        sql_stmt = sql_stmts[0].format(self.userprofile['userid'])
+        records = Network.sql_query(sql_stmt)
+        sql_stmt = sql_stmts[1].format(self.userprofile['userid'])
+        cats = Network.sql_query(sql_stmt)
+
+        records = records[0]
+        records['cats'] = []
+
+        for cat in cats:
+            records['cats'].append(cat['catcard_id'])
+
+        self.userprofile['records'] = records
+
+        body = str(records)
+        response = Network.generate_responseb(Flags.USER_PROFILE, len(body), body)
+        Network.send_data(self.client, response)
+
         return True
 
     # Sends all card data to the client
@@ -314,7 +357,7 @@ class Session(Thread):
     # Finds a match and records match results once match is finished
     def find_match(self, request=None):
 
-        Session.log_queue.put(self.userinfo['username'] + " is finding a match")
+        Session.log_queue.put(self.userprofile['username'] + " is finding a match")
         self.lobby.put(self)
 
         # Periodically notify matchmaker until match is found

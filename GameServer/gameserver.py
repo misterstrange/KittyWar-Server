@@ -3,11 +3,12 @@
 # TCP Port 2056
 
 import socket as sock
-from threading import Thread, Event
-from queue import Queue
-import sessions as session
 import tkinter
 import tkinter.scrolledtext
+
+from sessions import Network, Session
+from threading import Thread, Event
+from queue import Queue
 
 server_running = True
 log_queue = Queue()
@@ -29,14 +30,20 @@ def main():
     matchmaker_thread.start()
 
     # Bind server and listen for clients
+    server.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
     server.bind(server_address)
     server.settimeout(1)
     server.listen(5)
 
-    # Set GameThread variables for debugging and matchmaking to apply to all sessions
-    session.GameThread.log_queue = log_queue
-    session.GameThread.lobby = lobby
-    session.GameThread.match_event = match_event
+    # Grab all basic game information(cards) and store in GameThread to prevent
+    # repeatdely pulling this information for each session on request
+    card_information = pull_carddata()
+
+    # Set GameThread variables for debugging/matchmaking/information to apply to all sessions
+    Session.card_information = card_information
+    Session.log_queue = log_queue
+    Session.lobby = lobby
+    Session.match_event = match_event
 
     # Create thread dedicated to listening for clients
     polling_thread = Thread(target=poll_connections, args=(server,))
@@ -45,7 +52,7 @@ def main():
 
     # Server GUI code
     root = tkinter.Tk()
-    root.geometry("500x500")
+    root.geometry("600x600")
     root.title("KittyWar Game Server")
 
     # Create text display
@@ -60,6 +67,23 @@ def main():
     # Start GUI and set update to every 100ms
     root.after(100, update_display, (root, server_display))
     root.mainloop()
+
+
+def pull_carddata():
+
+    card_information = {}
+    sql_stmts = [
+        'SELECT * FROM KittyWar_catcard;',
+        'SELECT * FROM KittyWar_basiccards;',
+        'SELECT * FROM KittyWar_chancecards;',
+        'SELECT * FROM KittyWar_abilitycards;'
+    ]
+
+    card_information['cats'] = Network.sql_query(sql_stmts[0])
+    card_information['moves'] = Network.sql_query(sql_stmts[1])
+    card_information['chances'] = Network.sql_query(sql_stmts[2])
+    card_information['abilities'] = Network.sql_query(sql_stmts[3])
+    return card_information
 
 
 def update_display(root_display):
@@ -92,7 +116,7 @@ def poll_connections(server):
             continue
 
         log_queue.put("Anonymous user connected from address: " + client_address[0])
-        new_session = session.Session((client, client_address))
+        new_session = Session((client, client_address))
         new_session.start()
 
         connections.append(new_session)
@@ -116,11 +140,11 @@ def match_maker(match_event, lobby):
         # Check if an opponent is available
         if lobby.qsize() >= 2:
 
-            # Grab two ready clients and pass them to a match thread
+            # Grab two ready clients and pass them to a match process
             session1 = lobby.get()
             session2 = lobby.get()
 
-            match = session.Match((session1.client, session2.client))
+            match = None
             session1.match = match
             session2.match = match
 

@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 
 
 class AbilityCards(models.Model):
+
     CARD_PHASES = (
         (0, 'Any'),
         (1, 'Prelude'),
@@ -11,63 +12,61 @@ class AbilityCards(models.Model):
         (4, 'Strategy settlement'),
         (5, 'Postlude'),
     )
-    title = models.CharField(max_length=10)
-    attribute_id = models.CharField(max_length=30)
+
+    ability_id = models.PositiveIntegerField(default=0, primary_key=True)
+
+    title = models.CharField(max_length=32)
+    description = models.CharField(max_length=1024)
+
     phase = models.PositiveIntegerField(1, choices=CARD_PHASES, default=0)
     cooldown = models.PositiveIntegerField(default=0)
-    description = models.CharField(max_length=100)
-    flavor = models.CharField(max_length=100)
 
 
 class CatCard(models.Model):
-    
-    breed = models.CharField(max_length=30)
-    health = models.PositiveIntegerField(default=10)
+
+    cat_id = models.PositiveIntegerField(default=0, primary_key=True)
+
+    title = models.CharField(max_length=32)
+    description = models.CharField(max_length=1024)
+
+    health = models.PositiveIntegerField(default=0)
     default = models.PositiveIntegerField(default=0)
-    attribute_id = models.CharField(max_length=30)
-    description = models.CharField(max_length=100)
-    flavor = models.CharField(max_length=100)
-    abilityid = models.CharField(max_length=10)
+    ability_id = models.PositiveIntegerField(default=0)
 
 
 class BasicCards(models.Model):
-    
-    title = models.CharField(max_length=10)
-    attribute_id = models.CharField(max_length=10)
-    default = models.PositiveIntegerField(default=0)
-    description = models.CharField(max_length=100)
-    flavor = models.CharField(max_length=100)
+
+    basic_id = models.PositiveIntegerField(default=0, primary_key=True)
+
+    title = models.CharField(max_length=32)
+    description = models.CharField(max_length=1024)
+    flavor = models.CharField(max_length=1024)
+
+
+class ChanceCards(models.Model):
+
+    chance_id = models.PositiveIntegerField(default=0, primary_key=True)
+
+    title = models.CharField(max_length=32)
+    type = models.CharField(max_length=32)
+    description = models.CharField(max_length=1024)
+
+    basic_id = models.PositiveIntegerField(default=0)
 
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     token = models.CharField(max_length=24)
+
+    matches = models.PositiveIntegerField(default=0)
     wins = models.PositiveIntegerField(default=0)
     loss = models.PositiveIntegerField(default=0)
     draw = models.PositiveIntegerField(default=0)
-    cat_owned = models.ManyToManyField(CatCard)
-    basic_owned = models.ManyToManyField(BasicCards)
+    cats = models.ManyToManyField(CatCard)
 
     def logged_in(self):
 
         if self.token != '':
             return True
         return False
-
-    def retrieve_win(self):
-        return self.wins
-
-    def retrieve_loss(self):
-        return self.loss
-
-    # basic method to determine skill level, most likely will be replaced
-    # by glicko method of rating
-    def retrieve_ratio(self):
-        total = self.wins + self.loss + self.draw
-        if total == 0:
-            return 0
-        else:
-            ratio = self.wins / total
-            return ratio
-
-

@@ -1,14 +1,14 @@
 import socket as sock
-import pymysql
+import match
 
-from pymysql.cursors import DictCursor
+from network import Network
 from threading import Thread
 from time import sleep
 from enum import IntEnum
 
 
 # Enum to map flag literals to a name
-class Flags(IntEnum):
+class RequestFlags(IntEnum):
 
     FAILURE = 0
     SUCCESS = 1
@@ -22,93 +22,7 @@ class Flags(IntEnum):
     BASIC_CARDS = 6
     CHANCE_CARDS = 7
     ABILITY_CARDS = 8
-
-
-# Helper class that contains useful network functions
-class Network:
-
-    # Translates an int to 3 bytes - returns bytearray object
-    @staticmethod
-    def int_3byte(num):
-
-        _3byte = bytearray()
-        for i in range(0, 3):
-
-            _3byte.insert(0, num & 0xFF)
-            num >>= 8
-
-        return _3byte
-
-    # Creates response header with flag and size
-    @staticmethod
-    def generate_responseh(flag, size):
-
-        response = bytearray()
-        response.append(flag)
-        response += Network.int_3byte(size)
-        return response
-
-    # Creates header with flag and size and attaches response body
-    @staticmethod
-    def generate_responseb(flag, size, body):
-
-        response = Network.generate_responseh(flag, size)
-        response += body.encode('utf-8')
-        return response
-
-    # Creates and returns a database connection
-    @staticmethod
-    def db_connection():
-        return pymysql.connect(
-            host='69.195.124.204', user='deisume_kittywar',
-            password='kittywar', db='deisume_kittywar', autocommit=True)
-
-    # Alternative to db_connection, executes an sql statement for you
-    @staticmethod
-    def sql_query(query):
-
-        db = Network.db_connection()
-
-        try:
-            with db.cursor(DictCursor) as cursor:
-
-                cursor.execute(query)
-                result = cursor.fetchall()
-
-        finally:
-            db.close()
-
-        return result
-
-    # Receives a fixed amount of data from client or returns none if error receiving
-    @staticmethod
-    def receive_data(client, data_size):
-
-        packet = b''
-        received_data = bytearray()
-        while len(received_data) < data_size:
-
-            try:
-                packet = client.recv(data_size - len(received_data))
-            except ConnectionResetError:
-                pass
-
-            if not packet:
-                return None
-
-            received_data += packet
-
-        return received_data
-
-    # Sends a response to client based on previous request
-    @staticmethod
-    def send_data(client, data):
-
-        # noinspection PyBroadException
-        try:
-            client.sendall(data)
-        except:
-            pass
+    END_MATCH = 9
 
 
 class Session(Thread):
@@ -140,7 +54,6 @@ class Session(Thread):
         self.userprofile = {'username': 'Anonymous'}
         self.client = client_info[0]
         self.client_address = client_info[1]
-
         self.match = None
 
     # Session Thread loop - runs until server is being shutdown or client disconnects
@@ -184,25 +97,37 @@ class Session(Thread):
 
         flag = request['flag']
 
-        '''
+        """
         # Check user identity for sensitive operations
-        if flag >= Flags.FIND_MATCH:
+        if flag > SFlags.LOGOUT:
             if not self.verified(request):
                 Session.log_queue.put(
                     self.userprofile['username'] + " is not authorized to use flag " +
                     str(flag) + ", closing this connection")
                 return False
-        '''
+        """
 
-        success = False
-        try:
-            success = request_map[flag](self, request)
-        except KeyError:
+        # Check if the flag is valid
+        request_successful = True
+        if flag in request_map:
+            request_successful = request_map[flag](self, request)
+
+        elif self.match and flag in match.request_map:
+
+            # If there is a problem with the match end the match and notify client
+            match_status = self.match.process_request(request)
+            if not match_status:
+
+                self.match = None
+                response = Network.generate_responseh(RequestFlags.END_MATCH, 0)
+                Network.send_data(self.client, response)
+
+        else:
             Session.log_queue.put(
                 "Server does not support flag " + str(flag)
                 + ", closing this connection")
 
-        return success
+        return request_successful
 
     def verified(self, request):
 
@@ -213,10 +138,10 @@ class Session(Thread):
         return False
 
     # Verifies user has actually logged through token authentication
-    def login(self, request=None):
+    def login(self, request):
 
         # Prepare client response
-        response = Network.generate_responseh(Flags.LOGIN, 1)
+        response = Network.generate_responseh(request['flag'], 1)
 
         # Retreive username from request body
         username = Network.receive_data(self.client, request['size'])
@@ -250,11 +175,11 @@ class Session(Thread):
                 self.authenticated = True
 
                 Session.log_queue.put(username + " authenticated")
-                response.append(Flags.SUCCESS)
+                response.append(RequestFlags.SUCCESS)
 
             else:
                 Session.log_queue.put(username + " failed authentication")
-                response.append(Flags.FAILURE)
+                response.append(RequestFlags.FAILURE)
 
         else:
             # Username is verified through django server so force close connection
@@ -269,7 +194,7 @@ class Session(Thread):
     def logout(self, request=None):
 
         # Generate response to notify logout completed
-        response = Network.generate_responseh(Flags.LOGOUT, 1)
+        response = Network.generate_responseh(RequestFlags.LOGOUT, 1)
 
         if self.authenticated:
 
@@ -278,17 +203,15 @@ class Session(Thread):
             self.authenticated = False
 
             Session.log_queue.put(self.userprofile['username'] + " logged out")
-            response.append(Flags.SUCCESS)
+            response.append(RequestFlags.SUCCESS)
 
         else:
-            response.append(Flags.FAILURE)
+            response.append(RequestFlags.FAILURE)
 
         Network.send_data(self.client, response)
         return False
 
-    # Grab user profile information from database
-    # then save it and send it back to the client
-    def user_profile(self, request=None):
+    def _user_profile(self):
 
         sql_stmts = [
             'SELECT draw,loss,wins,matches FROM KittyWar_userprofile WHERE user_id=\'{}\';',
@@ -308,77 +231,88 @@ class Session(Thread):
 
         self.userprofile['records'] = records
 
-        body = str(records)
-        response = Network.generate_responseb(Flags.USER_PROFILE, len(body), body)
+    # Grab user profile information from database
+    # then save it and send it back to the client
+    def user_profile(self, request):
+
+        self._user_profile()
+
+        body = str(self.userprofile['records'])
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
 
         return True
 
     # Sends all card data to the client
-    def all_cards(self, request=None):
+    def all_cards(self, request):
 
         body = str(self.card_information)
-        response = Network.generate_responseb(Flags.ALL_CARDS, len(body), body)
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
         return True
 
     # Sends all cat card data to the client
-    def cat_cards(self, request=None):
+    def cat_cards(self, request):
 
         body = str(self.card_information['cats'])
-        response = Network.generate_responseb(Flags.CAT_CARDS, len(body), body)
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
         return True
 
     # Sends all moveset card data to the client
-    def basic_cards(self, request=None):
+    def basic_cards(self, request):
 
         body = str(self.card_information['moves'])
-        response = Network.generate_responseb(Flags.BASIC_CARDS, len(body), body)
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
         return True
 
     # Sends all chance card data to the client
-    def chance_cards(self, request=None):
+    def chance_cards(self, request):
 
         body = str(self.card_information['chances'])
-        response = Network.generate_responseb(Flags.CHANCE_CARDS, len(body), body)
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
         return True
 
     # Sends all ability card data to the client
-    def ability_cards(self, request=None):
+    def ability_cards(self, request):
 
         body = str(self.card_information['abilities'])
-        response = Network.generate_responseb(Flags.ABILITY_CARDS, len(body), body)
+        response = Network.generate_responseb(request['flag'], len(body), body)
         Network.send_data(self.client, response)
         return True
 
     # Finds a match and records match results once match is finished
-    def find_match(self, request=None):
+    def find_match(self, request):
 
         Session.log_queue.put(self.userprofile['username'] + " is finding a match")
         self.lobby.put(self)
 
-        # Periodically notify matchmaker until match is found
+        if 'records' not in self.userprofile:
+            self._user_profile()
+
+        # Periodically notify matchmaker and wait until match is found
         while self.match is None:
 
             self.match_event.set()
             self.match_event.clear()
             sleep(1)
 
-        # Wait until match is over to continue session
-        self.match.join()
+        # At this point a match has been found so notify client
+        response = Network.generate_responseb(request['flag'], 1, str(RequestFlags.SUCCESS))
+        Network.send_data(self.client, response)
 
-        return False
-        # Record match logic etc
+        return True
 
 request_map = {
-    Flags.LOGIN: Session.login, Flags.LOGOUT: Session.logout,
-    Flags.FIND_MATCH:    Session.find_match,
-    Flags.USER_PROFILE:  Session.user_profile,
-    Flags.ALL_CARDS:     Session.all_cards,
-    Flags.CAT_CARDS:     Session.cat_cards,
-    Flags.BASIC_CARDS:   Session.basic_cards,
-    Flags.CHANCE_CARDS:  Session.chance_cards,
-    Flags.ABILITY_CARDS: Session.ability_cards}
+
+    RequestFlags.LOGIN: Session.login, RequestFlags.LOGOUT: Session.logout,
+    RequestFlags.FIND_MATCH:    Session.find_match,
+    RequestFlags.USER_PROFILE:  Session.user_profile,
+    RequestFlags.ALL_CARDS:     Session.all_cards,
+    RequestFlags.CAT_CARDS:     Session.cat_cards,
+    RequestFlags.BASIC_CARDS:   Session.basic_cards,
+    RequestFlags.CHANCE_CARDS:  Session.chance_cards,
+    RequestFlags.ABILITY_CARDS: Session.ability_cards
+}

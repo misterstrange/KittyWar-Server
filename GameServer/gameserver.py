@@ -6,7 +6,9 @@ import socket as sock
 import tkinter
 import tkinter.scrolledtext
 
-from sessions import Network, Session
+from network import Network
+from sessions import Session
+from match import Match
 from threading import Thread, Event
 from queue import Queue
 
@@ -144,11 +146,23 @@ def match_maker(match_event, lobby):
             session1 = lobby.get()
             session2 = lobby.get()
 
-            match = None
-            session1.match = match
-            session2.match = match
+            create_match(session1, session2)
 
-            match.start()
+
+def create_match(session1, session2):
+
+    match = Match()
+
+    match.player1['username'] = session1.userprofile['username']
+    match.player1['connection'] = session1.client
+    match.player1['cats'] = session1.userprofile['records']['cats']
+
+    match.player2['username'] = session2.userprofile['username']
+    match.player2['connection'] = session2.client
+    match.player2['cats'] = session2.userprofile['records']['cats']
+
+    session1.match = match
+    session2.match = match
 
 
 def shutdown_server():

@@ -41,10 +41,10 @@ def register_view(request):
             userprofile.save()
 
             # Adds the default cards to the userprofile
-            catcards = CatCard.objects.all().filter(default=1)
-            basiccards= BasicCards.objects.all().filter(default=1)
-            userprofile.cat_owned.add(catcards)
-            userprofile.basic_owned.add(basiccards)
+            catcards = CatCard.objects.filter(default=1)
+
+            for default_cat in catcards:
+                userprofile.cats.add(default_cat.cat_id)
 
             return HttpResponseRedirect('/kittywar/login/?s=Registration Successful')
 
@@ -72,9 +72,15 @@ def register_mobile_view(request):
 
         email = json_data['email']
         password = json_data['password']
-        User.objects.create_user(username, email, password)
+        user = User.objects.create_user(username, email, password)
         userprofile = UserProfile(user=user)
         userprofile.save()
+
+        # Adds the default cards to the userprofile
+        catcards = CatCard.objects.filter(default=1)
+
+        for default_cat in catcards:
+            userprofile.cats.add(default_cat.cat_id)
 
         return JsonResponse(dict(status='201'))
 
@@ -129,7 +135,7 @@ def login_mobile_view(request):
             userquery = UserProfile.objects.filter(user_id=user.id)
             userprofile = userquery[0]
 
-            if not userprofile.logged_in():
+            if userprofile is not None and not userprofile.logged_in():
 
                 while True:
 

@@ -40,13 +40,6 @@ class Match:
         return {'ready':  False, 'ddealt': 0, 'ddodged': 0,
                 'rability': 0}
 
-    def get_player(self, username):
-
-        if self.player1['username'] == username:
-            return self.player1
-        else:
-            return self.player2
-
     def process_request(self, username, request):
 
         self.lock.aquire()
@@ -56,16 +49,6 @@ class Match:
 
         self.lock.release()
         return self.match_status
-
-    def player_ready(self, player):
-
-        player['ready'] = True
-        return self.player1['ready'] and self.player2['ready']
-
-    def reset_ready(self):
-
-        self.player1['ready'] = False
-        self.player2['ready'] = False
 
     def setup(self, player, request):
 
@@ -80,12 +63,12 @@ class Match:
 
                 self.reset_ready()
                 self.phase = RPFlags.PRELUDE
-                self. gloria_prelude(player)
+                self.gloria_prelude(player)
 
     def gloria_prelude(self, player):
 
-        self.use_passive_ability(player['cat'])
-        self.use_passive_ability(player['rability'])
+        self.use_passive_ability(player, player['cat'])
+        self.use_passive_ability(player, player['rability'])
 
     def prelude(self, player, request):
 
@@ -116,6 +99,23 @@ class Match:
     def postlude(self):
         pass
 
+    def get_player(self, username):
+
+        if self.player1['username'] == username:
+            return self.player1
+        else:
+            return self.player2
+
+    def player_ready(self, player):
+
+        player['ready'] = True
+        return self.player1['ready'] and self.player2['ready']
+
+    def reset_ready(self):
+
+        self.player1['ready'] = False
+        self.player2['ready'] = False
+
     def select_cat(self, player, request):
 
         cat_id = Network.receive_data(player['connection'], request['size'])
@@ -126,25 +126,34 @@ class Match:
                 player['cat'] = cat
                 break
 
-    def use_passive_ability(self, ability_id):
+    def use_passive_ability(self, player, ability_id):
 
-        if ability_id in pability_map:
-            pability_map[ability_id]()
+        useable = not self.on_cooldown(ability_id)
+        if useable and ability_id in pability_map:
+            pability_map[ability_id](self.phase, player)
 
     def use_active_ability(self, player, request):
 
-        # TODO - check for ability cooldowns
         ability_id = Network.receive_data(player['connection'], request['size'])
+
+        # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player['cat'] or ability_id == player['rability']
+        useable = useable and not self.on_cooldown(ability_id)
 
         if useable and ability_id in aability_map:
-            aability_map[ability_id]()
+            aability_map[ability_id](self.phase, player)
+
+    # Checks if an ability is on cooldown
+    def on_cooldown(self, ability_id):
+        return True
+
 
 phase_map = {
 
     RPFlags.SETUP: Match.setup,
     RPFlags.PRELUDE: Match.prelude,
-    RPFlags.ENACT_STRATS: Match.enact_strats
+    RPFlags.ENACT_STRATS: Match.enact_strats,
+    RPFlags.POSTLUDE: Match.postlude
 }
 
 request_map = {
@@ -154,17 +163,19 @@ request_map = {
 
 
 # Ability 01 - Rejuvenation
-def a_ability01():
+def a_ability01(phase, player):
 
-    # TODO
-    pass
+    if phase == RPFlags.POSTLUDE:
+        # TODO
+        pass
 
 
 # Ability 02 - Gentleman
-def p_ability02():
+def p_ability02(phase, player):
 
-    # TODO
-    pass
+    if phase == RPFlags.POSTLUDE:
+        # TODO
+        pass
 
 aability_map = {
     AbilityFlags.Rejuvenation: a_ability01

@@ -115,12 +115,13 @@ class Session(Thread):
         elif self.match and flag in match.request_map:
 
             # If there is a problem with the match end the match and notify client
-            match_status = self.match.process_request(request)
-            if not match_status:
+            self.match.lock.aquire()
+            match_valid = self.match.process_request(request)
+            self.match.lock.release()
+
+            if not match_valid:
 
                 self.match = None
-                response = Network.generate_responseh(RequestFlags.END_MATCH, 0)
-                Network.send_data(self.client, response)
 
         else:
             Session.log_queue.put(
@@ -143,7 +144,7 @@ class Session(Thread):
         # Prepare client response
         response = Network.generate_responseh(request['flag'], 1)
 
-        # Retreive username from request body
+        # Retrieve username from request body
         username = Network.receive_data(self.client, request['size'])
 
         # If the user does not send username or connection error close connection

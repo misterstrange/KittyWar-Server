@@ -82,9 +82,17 @@ def pull_carddata():
     ]
 
     card_information['cats'] = Network.sql_query(sql_stmts[0])
+    # print(card_information['cats'])
+
     card_information['moves'] = Network.sql_query(sql_stmts[1])
+    # print(card_information['moves'])
+
     card_information['chances'] = Network.sql_query(sql_stmts[2])
+    # print(card_information['chances'])
+
     card_information['abilities'] = Network.sql_query(sql_stmts[3])
+    # print(card_information['abilities'])
+
     return card_information
 
 

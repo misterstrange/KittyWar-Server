@@ -7,6 +7,15 @@ from time import sleep
 from enum import IntEnum
 
 
+class Request:
+
+    def __init__(self, flag, token, size):
+
+        self.flag = flag
+        self.token = token
+        self.size = size
+
+
 # Enum to map flag literals to a name
 class RequestFlags(IntEnum):
 
@@ -42,7 +51,7 @@ class Session(Thread):
         token = data[1:25].decode('utf-8')
         size = int.from_bytes(data[25:28], byteorder='big')
 
-        request = {'flag': flag, 'token': token, 'size': size}
+        request = Request(flag, token, size)
         return request
 
     def __init__(self, client_info):
@@ -85,6 +94,10 @@ class Session(Thread):
 
     def kill(self):
 
+        # If the user has disconnected during a match they incur a loss
+        if self.match:
+            self.match.disconnect(self.userprofile['username'])
+
         try:
             self.client.shutdown(sock.SHUT_RDWR)
         except OSError:
@@ -95,7 +108,7 @@ class Session(Thread):
 
         Session.log_queue.put("Request: " + str(request))
 
-        flag = request['flag']
+        flag = request.flag
 
         """
         # Check user identity for sensitive operations
@@ -133,7 +146,7 @@ class Session(Thread):
     def verified(self, request):
 
         if self.authenticated:
-            if request['token'] == self.userprofile['token']:
+            if request.token == self.userprofile['token']:
                 return True
 
         return False
@@ -142,10 +155,10 @@ class Session(Thread):
     def login(self, request):
 
         # Prepare client response
-        response = Network.generate_responseh(request['flag'], 1)
+        response = Network.generate_responseh(request.flag, 1)
 
         # Retrieve username from request body
-        username = Network.receive_data(self.client, request['size'])
+        username = Network.receive_data(self.client, request.size)
 
         # If the user does not send username or connection error close connection
         if username is None:
@@ -169,7 +182,7 @@ class Session(Thread):
             # With user id query users login token
             result = Network.sql_query(sql_stmts[1].format(user_id))
 
-            if result and request['token'] == result[0]['token']:
+            if result and request.token == result[0]['token']:
 
                 self.userprofile['userid'] = user_id
                 self.userprofile['token'] = result[0]['token']
@@ -239,7 +252,7 @@ class Session(Thread):
         self._user_profile()
 
         body = str(self.userprofile['records'])
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
 
         return True
@@ -248,7 +261,7 @@ class Session(Thread):
     def all_cards(self, request):
 
         body = str(self.card_information)
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
         return True
 
@@ -256,7 +269,7 @@ class Session(Thread):
     def cat_cards(self, request):
 
         body = str(self.card_information['cats'])
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
         return True
 
@@ -264,7 +277,7 @@ class Session(Thread):
     def basic_cards(self, request):
 
         body = str(self.card_information['moves'])
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
         return True
 
@@ -272,7 +285,7 @@ class Session(Thread):
     def chance_cards(self, request):
 
         body = str(self.card_information['chances'])
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
         return True
 
@@ -280,7 +293,7 @@ class Session(Thread):
     def ability_cards(self, request):
 
         body = str(self.card_information['abilities'])
-        response = Network.generate_responseb(request['flag'], len(body), body)
+        response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.client, response)
         return True
 
@@ -301,7 +314,7 @@ class Session(Thread):
             sleep(1)
 
         # At this point a match has been found so notify client
-        response = Network.generate_responseb(request['flag'], 1, str(RequestFlags.SUCCESS))
+        response = Network.generate_responseb(request.flag, 1, str(RequestFlags.SUCCESS))
         Network.send_data(self.client, response)
 
         return True

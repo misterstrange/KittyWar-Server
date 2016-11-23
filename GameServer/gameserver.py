@@ -38,7 +38,7 @@ def main():
     server.listen(5)
 
     # Grab all basic game information(cards) and store in GameThread to prevent
-    # repeatdely pulling this information for each session on request
+    # repeatedly pulling this information for each session on request
     card_information = pull_carddata()
 
     # Set GameThread variables for debugging/matchmaking/information to apply to all sessions
@@ -82,9 +82,17 @@ def pull_carddata():
     ]
 
     card_information['cats'] = Network.sql_query(sql_stmts[0])
+    # print(card_information['cats'])
+
     card_information['moves'] = Network.sql_query(sql_stmts[1])
+    # print(card_information['moves'])
+
     card_information['chances'] = Network.sql_query(sql_stmts[2])
+    # print(card_information['chances'])
+
     card_information['abilities'] = Network.sql_query(sql_stmts[3])
+    # print(card_information['abilities'])
+
     return card_information
 
 
@@ -153,13 +161,13 @@ def create_match(session1, session2):
 
     match = Match()
 
-    match.player1['username'] = session1.userprofile['username']
-    match.player1['connection'] = session1.client
-    match.player1['cats'] = session1.userprofile['records']['cats']
+    match.player1.username = session1.userprofile['username']
+    match.player1.connection = session1.client
+    match.player1.cats = session1.userprofile['records']['cats']
 
-    match.player2['username'] = session2.userprofile['username']
-    match.player2['connection'] = session2.client
-    match.player2['cats'] = session2.userprofile['records']['cats']
+    match.player2.username = session2.userprofile['username']
+    match.player2.connection = session2.client
+    match.player2.cats = session2.userprofile['records']['cats']
 
     session1.match = match
     session2.match = match

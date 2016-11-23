@@ -86,6 +86,8 @@ class Match:
 
     def disconnect(self, username):
 
+        Match.log_queue.out(username + " has disconnected from the match")
+
         self.match_valid = False
 
         opponent = self.get_opponent(username)
@@ -199,6 +201,9 @@ class Match:
 
         ability_id = random.randrange(6, 8)
         player.rability = ability_id
+
+        Match.log_queue.put(player.name + " received random ability: " + ability_id)
+
         response = Network.generate_responseb(RPFlags.GAIN_ABILITY, 1, str(ability_id))
         Network.send_data(player.connection, response)
 
@@ -356,6 +361,8 @@ def a_ability01(phase, player):
         player.health += 1
         player.cooldowns.apppend((AbilityFlags.Rejuvenation, 3))
 
+        Match.log_queue.put(player.name + " used Rejuvenation +1 Health Point")
+
     ability_responses = [
 
         Network.generate_responseb(RPFlags.GAIN_HP, 1, str(1)),
@@ -373,6 +380,8 @@ def a_ability07(phase, player):
 
         player.modifier *= 2
         player.cooldowns.append((AbilityFlags.Critical, 3))
+
+        Match.log_queue.put(player.name + " used Critical Hit 2x Damage")
 
     ability_responses = [
 
@@ -395,6 +404,8 @@ def p_ability02(phase, player):
             chance_card = random.randrange(0, 9)
             player.chance_cards.append(chance_card)
 
+            Match.log_queue.put(player.name + " used Gentleman +1 Chance Card")
+
             ability_responses.append(
                 Network.generate_responseb(RPFlags.GAIN_CHANCE, 1, str(chance_card)))
             ability_responses.append(
@@ -414,6 +425,8 @@ def p_ability06(phase, player):
 
             chance_card = random.randrange(0, 9)
             player.chance_cards.append(chance_card)
+
+            Match.log_queue.put(player.name + " used Attacker +1 Chance Card")
 
             ability_responses.append(
                 Network.generate_responseb(RPFlags.GAIN_CHANCE, 1, str(chance_card)))

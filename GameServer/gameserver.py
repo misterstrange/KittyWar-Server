@@ -159,13 +159,19 @@ def match_maker(match_event, lobby):
 
 def create_match(session1, session2):
 
+    player1_name = session1.userprofile['username']
+    player2_name = session2.userprofile['username']
+
+    log_queue.put("Creating match for " + player1_name +
+                  " & " + player2_name)
+
     match = Match()
 
-    match.player1.username = session1.userprofile['username']
+    match.player1.username = player1_name
     match.player1.connection = session1.client
     match.player1.cats = session1.userprofile['records']['cats']
 
-    match.player2.username = session2.userprofile['username']
+    match.player2.username = player2_name
     match.player2.connection = session2.client
     match.player2.cats = session2.userprofile['records']['cats']
 

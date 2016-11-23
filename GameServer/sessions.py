@@ -313,6 +313,8 @@ class Session(Thread):
             self.match_event.clear()
             sleep(1)
 
+        Session.log_queue.put("Match starting for " + self.userprofile['username'])
+
         # At this point a match has been found so notify client
         response = Network.generate_responseb(request.flag, 1, str(RequestFlags.SUCCESS))
         Network.send_data(self.client, response)

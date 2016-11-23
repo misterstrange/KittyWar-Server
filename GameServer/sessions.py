@@ -1,37 +1,9 @@
 import socket as sock
-import match
 
-from network import Network
+from network import Network, Flags
 from threading import Thread
 from time import sleep
-from enum import IntEnum
-
-
-class Request:
-
-    def __init__(self, flag, token, size):
-
-        self.flag = flag
-        self.token = token
-        self.size = size
-
-
-# Enum to map flag literals to a name
-class RequestFlags(IntEnum):
-
-    FAILURE = 0
-    SUCCESS = 1
-
-    LOGIN = 0
-    LOGOUT = 1
-    FIND_MATCH = 2
-    USER_PROFILE = 3
-    ALL_CARDS = 4
-    CAT_CARDS = 5
-    BASIC_CARDS = 6
-    CHANCE_CARDS = 7
-    ABILITY_CARDS = 8
-    END_MATCH = 9
+from logger import Logger
 
 
 class Session(Thread):
@@ -40,19 +12,8 @@ class Session(Thread):
     server_running = True
 
     card_information = None
-    log_queue = None
     lobby = None
     match_event = None
-
-    @staticmethod
-    def parse_request(data):
-
-        flag = data[0]
-        token = data[1:25].decode('utf-8')
-        size = int.from_bytes(data[25:28], byteorder='big')
-
-        request = Request(flag, token, size)
-        return request
 
     def __init__(self, client_info):
 
@@ -68,7 +29,7 @@ class Session(Thread):
     # Session Thread loop - runs until server is being shutdown or client disconnects
     def run(self):
 
-        Session.log_queue.put("New session started")
+        Logger.log("New session started")
 
         while self.server_running:
 
@@ -78,7 +39,7 @@ class Session(Thread):
                 break
 
             # Process clients request and check if successful
-            request = self.parse_request(data)
+            request = Network.parse_request(data)
             successful = self.process_request(request)
             if not successful:
                 break
@@ -88,8 +49,8 @@ class Session(Thread):
         self.kill()
         self.client.close()
 
-        Session.log_queue.put(self.userprofile['username'] + " disconnected")
-        Session.log_queue.put(
+        Logger.log(self.userprofile['username'] + " disconnected")
+        Logger.log(
             "Session thread for " + self.userprofile['username'] + " ending")
 
     def kill(self):
@@ -106,38 +67,38 @@ class Session(Thread):
 
     def process_request(self, request):
 
-        Session.log_queue.put("Request: " + str(request))
+        Logger.log("Request: " + str(request))
 
         flag = request.flag
 
-        """
         # Check user identity for sensitive operations
-        if flag > SFlags.LOGOUT:
+        if flag > Flags.LOGOUT:
             if not self.verified(request):
-                Session.log_queue.put(
+                Logger.log(
                     self.userprofile['username'] + " is not authorized to use flag " +
                     str(flag) + ", closing this connection")
                 return False
-        """
 
         # Check if the flag is valid
+        mappable = flag in list(map(int, Flags))
+
         request_successful = True
         if flag in request_map:
             request_successful = request_map[flag](self, request)
 
-        elif self.match and flag in match.request_map:
+        elif self.match and mappable:
 
-            # If there is a problem with the match end the match and notify client
             self.match.lock.aquire()
             match_valid = self.match.process_request(request)
             self.match.lock.release()
 
+            # If problem with match end and notify client
             if not match_valid:
 
                 self.match = None
 
         else:
-            Session.log_queue.put(
+            Logger.log(
                 "Server does not support flag " + str(flag)
                 + ", closing this connection")
 
@@ -166,7 +127,7 @@ class Session(Thread):
 
         # Convert username to string by decoding
         username = username.decode('utf-8')
-        Session.log_queue.put("Body: " + username)
+        Logger.log("Body: " + username)
         self.userprofile['username'] = username
 
         sql_stmts = [
@@ -188,16 +149,16 @@ class Session(Thread):
                 self.userprofile['token'] = result[0]['token']
                 self.authenticated = True
 
-                Session.log_queue.put(username + " authenticated")
-                response.append(RequestFlags.SUCCESS)
+                Logger.log(username + " authenticated")
+                response.append(Flags.SUCCESS)
 
             else:
-                Session.log_queue.put(username + " failed authentication")
-                response.append(RequestFlags.FAILURE)
+                Logger.log(username + " failed authentication")
+                response.append(Flags.FAILURE)
 
         else:
             # Username is verified through django server so force close connection
-            Session.log_queue.put(
+            Logger.log(
                 "No username/id found for " + username + ", force closing connection")
             return False
 
@@ -208,7 +169,7 @@ class Session(Thread):
     def logout(self, request=None):
 
         # Generate response to notify logout completed
-        response = Network.generate_responseh(RequestFlags.LOGOUT, 1)
+        response = Network.generate_responseh(Flags.LOGOUT, 1)
 
         if self.authenticated:
 
@@ -216,11 +177,11 @@ class Session(Thread):
             Network.sql_query(sql_stmt.format(self.userprofile['userid']))
             self.authenticated = False
 
-            Session.log_queue.put(self.userprofile['username'] + " logged out")
-            response.append(RequestFlags.SUCCESS)
+            Logger.log(self.userprofile['username'] + " logged out")
+            response.append(Flags.SUCCESS)
 
         else:
-            response.append(RequestFlags.FAILURE)
+            response.append(Flags.FAILURE)
 
         Network.send_data(self.client, response)
         return False
@@ -300,7 +261,7 @@ class Session(Thread):
     # Finds a match and records match results once match is finished
     def find_match(self, request):
 
-        Session.log_queue.put(self.userprofile['username'] + " is finding a match")
+        Logger.log(self.userprofile['username'] + " is finding a match")
         self.lobby.put(self)
 
         if 'records' not in self.userprofile:
@@ -313,22 +274,22 @@ class Session(Thread):
             self.match_event.clear()
             sleep(1)
 
-        Session.log_queue.put("Match starting for " + self.userprofile['username'])
+        Logger.log("Match starting for " + self.userprofile['username'])
 
         # At this point a match has been found so notify client
-        response = Network.generate_responseb(request.flag, 1, str(RequestFlags.SUCCESS))
+        response = Network.generate_responseb(request.flag, 1, str(Flags.SUCCESS))
         Network.send_data(self.client, response)
 
         return True
 
 request_map = {
 
-    RequestFlags.LOGIN: Session.login, RequestFlags.LOGOUT: Session.logout,
-    RequestFlags.FIND_MATCH:    Session.find_match,
-    RequestFlags.USER_PROFILE:  Session.user_profile,
-    RequestFlags.ALL_CARDS:     Session.all_cards,
-    RequestFlags.CAT_CARDS:     Session.cat_cards,
-    RequestFlags.BASIC_CARDS:   Session.basic_cards,
-    RequestFlags.CHANCE_CARDS:  Session.chance_cards,
-    RequestFlags.ABILITY_CARDS: Session.ability_cards
+    Flags.LOGIN: Session.login, Flags.LOGOUT: Session.logout,
+    Flags.FIND_MATCH:    Session.find_match,
+    Flags.USER_PROFILE:  Session.user_profile,
+    Flags.ALL_CARDS:     Session.all_cards,
+    Flags.CAT_CARDS:     Session.cat_cards,
+    Flags.BASIC_CARDS:   Session.basic_cards,
+    Flags.CHANCE_CARDS:  Session.chance_cards,
+    Flags.ABILITY_CARDS: Session.ability_cards
 }

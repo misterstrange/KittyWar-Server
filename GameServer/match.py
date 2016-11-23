@@ -1,34 +1,20 @@
-from network import Network
-from enum import IntEnum
-from threading import Lock
 import random
 
+from logger import Logger
+from network import Network, Flags
+from enum import IntEnum
+from threading import Lock
 
-class RPFlags(IntEnum):
+
+class Phases(IntEnum):
 
     SETUP = 0
     PRELUDE = 1
     ENACT_STRATS = 2
     POSTLUDE = 3
 
-    OP_CAT = 49
-    GAIN_HP = 50
-    OP_GAIN_HP = 51
-    DMG_MODIFIED = 52
-    OP_DMG_MODIFIED = 53
-    GAIN_CHANCE = 54
-    OP_GAIN_CHANCE = 55
-    GAIN_ABILITY = 56
 
-    END_MATCH = 9
-    NEXT_PHASE = 98
-    READY = 99
-    SELECT_CAT = 100
-    USE_ABILITY = 101
-    TARGET = 102
-
-
-class AbilityFlags(IntEnum):
+class Abilities(IntEnum):
 
     Rejuvenation = 0
     Gentleman = 1
@@ -58,14 +44,12 @@ class Player:
 
 class Match:
 
-    log_queue = None
-
     def __init__(self):
 
         self.lock = Lock()
         self.match_valid = True
 
-        self.phase = RPFlags.SETUP
+        self.phase = Phases.SETUP
         self.player1 = Player()
         self.player2 = Player()
 
@@ -82,28 +66,28 @@ class Match:
     def kill_match(self):
 
         self.match_valid = False
-        self.alert_players(RPFlags.END_MATCH, 1, str(3))
+        self.alert_players(Flags.END_MATCH, 1, str(3))
 
     def disconnect(self, username):
 
-        Match.log_queue.out(username + " has disconnected from the match")
+        Logger.log(username + " has disconnected from the match")
 
         self.match_valid = False
 
         opponent = self.get_opponent(username)
 
         # The disconnected player gets a loss - notify the winning player
-        response = Network.generate_responseb(RPFlags.END_MATCH, 1, str(1))
+        response = Network.generate_responseb(Flags.END_MATCH, 1, str(1))
         Network.send_data(opponent, response)
 
     # Phase before prelude for handling match preparation
     def setup(self, player, request):
 
         flag = request.flag
-        if flag == RPFlags.SELECT_CAT:
-            request_map[request](player, request)
+        if flag == Flags.SELECT_CAT:
+            self.select_cat(player, request)
 
-        elif flag == RPFlags.READY:
+        elif flag == Flags.READY:
 
             # Set the player to ready and assign random ability
             players_ready = self.player_ready(player)
@@ -113,7 +97,7 @@ class Match:
             if players_ready:
 
                 # Set and alert players of next phase
-                self.next_phase(RPFlags.PRELUDE)
+                self.next_phase(Phases.PRELUDE)
 
                 # Do not proceed if someone did not select a cat but readied up
                 if self.player1.cat and self.player2.cat:
@@ -125,8 +109,8 @@ class Match:
     # Activates any prelude passive abilities the players have
     def gloria_prelude(self):
 
-        Match.log_queue.put("Prelude phase starting for " + self.player1.username +
-                            ", " + self.player2.username)
+        Logger.log("Prelude phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
 
         self.use_passive_ability(self.player1, self.player1.cat)
         self.use_passive_ability(self.player1, self.player1.rability)
@@ -137,16 +121,16 @@ class Match:
     def prelude(self, player, request):
 
         flag = request.flag
-        if flag == RPFlags.USE_ABILITY:
+        if flag == Flags.USE_ABILITY:
             self.use_active_ability(player, request)
 
-        elif flag == RPFlags.READY:
+        elif flag == Flags.READY:
 
             players_ready = self.player_ready(player)
             if players_ready:
 
                 # Set and alert players of next phase
-                self.next_phase(RPFlags.ENACT_STRATS)
+                self.next_phase(Phases.ENACT_STRATS)
                 self.gloria_enact_strats()
 
     def gloria_enact_strats(self):
@@ -202,9 +186,9 @@ class Match:
         ability_id = random.randrange(6, 8)
         player.rability = ability_id
 
-        Match.log_queue.put(player.name + " received random ability: " + ability_id)
+        Logger.log(player.name + " received random ability: " + ability_id)
 
-        response = Network.generate_responseb(RPFlags.GAIN_ABILITY, 1, str(ability_id))
+        response = Network.generate_responseb(Flags.GAIN_ABILITY, 1, str(ability_id))
         Network.send_data(player.connection, response)
 
     # Move onto the next phase specified and alert the players
@@ -212,7 +196,7 @@ class Match:
 
         self.reset_ready()
         self.phase = phase
-        self.alert_players(RPFlags.NEXT_PHASE)
+        self.alert_players(Flags.NEXT_PHASE)
 
     # Set a player to ready and return whether both are ready or not
     def player_ready(self, player):
@@ -230,7 +214,7 @@ class Match:
     def select_cat(self, player, request):
 
         # Prepare response and retrieve cat the client wants to use
-        response = Network.generate_responseh(RPFlags.SELECT_CAT, 1)
+        response = Network.generate_responseh(Flags.SELECT_CAT, 1)
         cat_id = Network.receive_data(player.connetion, request.size)
 
         # Verify user can select the cat they have
@@ -239,8 +223,8 @@ class Match:
 
             if cat['ability_id'] == cat_id:
 
-                Match.log_queue.put(player.username + " has selected their cat" +
-                                    " - id: " + str(cat))
+                Logger.log(player.username + " has selected their cat" +
+                           " - id: " + str(cat))
 
                 player.cat = cat_id
                 player.health = cat['health']
@@ -253,17 +237,17 @@ class Match:
         # Code 3 is used - No winner match ending in error
         if not valid_cat:
 
-            Match.log_queue.put("Illegal cat selection from " +
-                                player.username + ", ending match with error status")
+            Logger.log("Illegal cat selection from " +
+                       player.username + ", ending match with error status")
 
             self.match_valid = False
-            self.alert_players(RPFlags.END_MATCH, 1, str(3))
+            self.alert_players(Flags.END_MATCH, 1, str(3))
             return
 
         # Notify player selection was successful and notify opponent of your cat
         Network.send_data(player.connection, response)
 
-        response = Network.generate_responseb(RPFlags.OP_CAT, 1, str(player.cat))
+        response = Network.generate_responseb(Flags.OP_CAT, 1, str(player.cat))
         opponent = self.get_opponent(player.username)
         Network.send_data(opponent.connection, response)
 
@@ -274,8 +258,8 @@ class Match:
         ability_responses = None
         if useable and is_passive(ability_id):
 
-            Match.log_queue.put(player.username +
-                                " using passive ability - id: " + ability_id)
+            Logger.log(player.username +
+                       " using passive ability - id: " + ability_id)
             ability_responses = pability_map[ability_id](self.phase, player)
 
         if ability_responses:
@@ -288,7 +272,7 @@ class Match:
     def use_active_ability(self, player, request):
 
         # Prepare response based on the ability being used or not
-        response = Network.generate_responseh(RPFlags.USE_ABILITY, 1)
+        response = Network.generate_responseh(Flags.USE_ABILITY, 1)
 
         ability_id = Network.receive_data(player.connection, request.size)
 
@@ -299,8 +283,8 @@ class Match:
         ability_responses = None
         if useable and is_active(ability_id):
 
-            Match.log_queue.put(player.username +
-                                " using active ability - id: " + ability_id)
+            Logger.log(player.username +
+                       " using active ability - id: " + ability_id)
             ability_responses = aability_map[ability_id](self.phase, player)
             response.append(1)
 
@@ -330,15 +314,10 @@ class Match:
 
 phase_map = {
 
-    RPFlags.SETUP: Match.setup,
-    RPFlags.PRELUDE: Match.prelude,
-    RPFlags.ENACT_STRATS: Match.enact_strats,
-    RPFlags.POSTLUDE: Match.postlude
-}
-
-request_map = {
-
-    RPFlags.SELECT_CAT: Match.select_cat
+    Phases.SETUP: Match.setup,
+    Phases.PRELUDE: Match.prelude,
+    Phases.ENACT_STRATS: Match.enact_strats,
+    Phases.POSTLUDE: Match.postlude
 }
 
 
@@ -356,17 +335,17 @@ def is_passive(ability_id):
 # Gain 1 HP - Postlude - Cooldown: 2
 def a_ability01(phase, player):
 
-    if phase == RPFlags.POSTLUDE:
+    if phase == Phases.POSTLUDE:
 
         player.health += 1
-        player.cooldowns.apppend((AbilityFlags.Rejuvenation, 3))
+        player.cooldowns.apppend((Abilities.Rejuvenation, 3))
 
-        Match.log_queue.put(player.name + " used Rejuvenation +1 Health Point")
+        Logger.log(player.name + " used Rejuvenation +1 Health Point")
 
     ability_responses = [
 
-        Network.generate_responseb(RPFlags.GAIN_HP, 1, str(1)),
-        Network.generate_responseb(RPFlags.OP_GAIN_HP, 1, str(1))
+        Network.generate_responseb(Flags.GAIN_HP, 1, str(1)),
+        Network.generate_responseb(Flags.OP_GAIN_HP, 1, str(1))
     ]
 
     return ability_responses
@@ -376,17 +355,17 @@ def a_ability01(phase, player):
 # Modifier x2 - PRELUDE - Cooldown: 2
 def a_ability07(phase, player):
 
-    if phase == RPFlags.PRELUDE:
+    if phase == Phases.PRELUDE:
 
         player.modifier *= 2
-        player.cooldowns.append((AbilityFlags.Critical, 3))
+        player.cooldowns.append((Abilities.Critical, 3))
 
-        Match.log_queue.put(player.name + " used Critical Hit 2x Damage")
+        Logger.log(player.name + " used Critical Hit 2x Damage")
 
     ability_responses = [
 
-        Network.generate_responseb(RPFlags.DMG_MODIFIED, 1, str(player.modifier)),
-        Network.generate_responseb(RPFlags.OP_DMG_MODIFIED, 1, str(player.modifier))
+        Network.generate_responseb(Flags.DMG_MODIFIED, 1, str(player.modifier)),
+        Network.generate_responseb(Flags.OP_DMG_MODIFIED, 1, str(player.modifier))
     ]
 
     return ability_responses
@@ -398,18 +377,18 @@ def a_ability07(phase, player):
 def p_ability02(phase, player):
 
     ability_responses = None
-    if phase == RPFlags.POSTLUDE:
+    if phase == Phases.POSTLUDE:
         if player.ddodged >= 2:
 
             chance_card = random.randrange(0, 9)
             player.chance_cards.append(chance_card)
 
-            Match.log_queue.put(player.name + " used Gentleman +1 Chance Card")
+            Logger.log(player.name + " used Gentleman +1 Chance Card")
 
             ability_responses.append(
-                Network.generate_responseb(RPFlags.GAIN_CHANCE, 1, str(chance_card)))
+                Network.generate_responseb(Flags.GAIN_CHANCE, 1, str(chance_card)))
             ability_responses.append(
-                Network.generate_responseb(RPFlags.OP_GAIN_CHANCE, 1, str(chance_card)))
+                Network.generate_responseb(Flags.OP_GAIN_CHANCE, 1, str(chance_card)))
 
     return ability_responses
 
@@ -420,29 +399,29 @@ def p_ability02(phase, player):
 def p_ability06(phase, player):
 
     ability_responses = None
-    if phase == RPFlags.POSTLUDE:
+    if phase == Phases.POSTLUDE:
         if player.ddealt >= 2:
 
             chance_card = random.randrange(0, 9)
             player.chance_cards.append(chance_card)
 
-            Match.log_queue.put(player.name + " used Attacker +1 Chance Card")
+            Logger.log(player.name + " used Attacker +1 Chance Card")
 
             ability_responses.append(
-                Network.generate_responseb(RPFlags.GAIN_CHANCE, 1, str(chance_card)))
+                Network.generate_responseb(Flags.GAIN_CHANCE, 1, str(chance_card)))
             ability_responses.append(
-                Network.generate_responseb(RPFlags.OP_GAIN_CHANCE, 1, str(chance_card)))
+                Network.generate_responseb(Flags.OP_GAIN_CHANCE, 1, str(chance_card)))
 
     return ability_responses
 
 aability_map = {
 
-    AbilityFlags.Rejuvenation: a_ability01,
-    AbilityFlags.Critical: a_ability07
+    Abilities.Rejuvenation: a_ability01,
+    Abilities.Critical: a_ability07
 }
 
 pability_map = {
 
-    AbilityFlags.Gentleman: p_ability02,
-    AbilityFlags.Attacker: p_ability06
+    Abilities.Gentleman: p_ability02,
+    Abilities.Attacker: p_ability06
 }

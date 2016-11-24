@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Kittywar game server
+# Kitty War game server
 # TCP Port 2056
 
 import socket as sock
@@ -11,9 +11,9 @@ from sessions import Session
 from match import Match
 from threading import Thread, Event
 from queue import Queue
+from logger import Logger
 
 server_running = True
-log_queue = Queue()
 
 
 def main():
@@ -39,11 +39,10 @@ def main():
 
     # Grab all basic game information(cards) and store in GameThread to prevent
     # repeatedly pulling this information for each session on request
-    card_information = pull_carddata()
+    card_information = pull_card_data()
 
     # Set GameThread variables for debugging/matchmaking/information to apply to all sessions
     Session.card_information = card_information
-    Session.log_queue = log_queue
     Session.lobby = lobby
     Session.match_event = match_event
 
@@ -71,7 +70,7 @@ def main():
     root.mainloop()
 
 
-def pull_carddata():
+def pull_card_data():
 
     card_information = {}
     sql_stmts = [
@@ -101,11 +100,11 @@ def update_display(root_display):
     root = root_display[0]
     server_display = root_display[1]
 
-    queue_length = log_queue.qsize()
-    for i in range(0, queue_length):
+    log_count = Logger.log_count()
+    for i in range(0, log_count):
 
         server_display.config(state=tkinter.NORMAL)
-        server_display.insert(tkinter.END, log_queue.get() + "\n")
+        server_display.insert(tkinter.END, "{}\n".format(Logger.retrieve()))
         server_display.pack()
         server_display.config(state=tkinter.DISABLED)
 
@@ -114,18 +113,19 @@ def update_display(root_display):
 
 def poll_connections(server):
 
-    log_queue.put("Server started")
+    Logger.log("Server started")
+    Logger.log(server.getsockname())
     connections = []
 
     while server_running:
 
-        # Occasionlly timeout from polling to check if the server is still running
+        # Occasionally timeout from polling to check if the server is still running
         try:
             client, client_address = server.accept()
         except sock.timeout:
             continue
 
-        log_queue.put("Anonymous user connected from address: " + client_address[0])
+        Logger.log("Anonymous user connected from address: " + client_address[0])
         new_session = Session((client, client_address))
         new_session.start()
 
@@ -137,7 +137,7 @@ def poll_connections(server):
 
     server.shutdown(sock.SHUT_RDWR)
     server.close()
-    log_queue.put("Server stopped")
+    Logger.log("Server stopped")
 
 
 def match_maker(match_event, lobby):
@@ -159,13 +159,19 @@ def match_maker(match_event, lobby):
 
 def create_match(session1, session2):
 
+    player1_name = session1.userprofile['username']
+    player2_name = session2.userprofile['username']
+
+    Logger.log("Creating match for " + player1_name +
+               " & " + player2_name)
+
     match = Match()
 
-    match.player1.username = session1.userprofile['username']
+    match.player1.username = player1_name
     match.player1.connection = session1.client
     match.player1.cats = session1.userprofile['records']['cats']
 
-    match.player2.username = session2.userprofile['username']
+    match.player2.username = player2_name
     match.player2.connection = session2.client
     match.player2.cats = session2.userprofile['records']['cats']
 
@@ -175,7 +181,7 @@ def create_match(session1, session2):
 
 def shutdown_server():
 
-    log_queue.put("Server stopping")
+    Logger.log("Server stopping")
     global server_running
     server_running = False
 

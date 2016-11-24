@@ -1,5 +1,48 @@
 import pymysql
 from pymysql.cursors import DictCursor
+from enum import IntEnum
+
+
+# Enum to map flag literals to a name
+class Flags(IntEnum):
+
+    FAILURE = 0
+    SUCCESS = 1
+
+    LOGIN = 0
+    LOGOUT = 1
+    FIND_MATCH = 2
+    USER_PROFILE = 3
+    ALL_CARDS = 4
+    CAT_CARDS = 5
+    BASIC_CARDS = 6
+    CHANCE_CARDS = 7
+    ABILITY_CARDS = 8
+    END_MATCH = 9
+
+    OP_CAT = 49
+    GAIN_HP = 50
+    OP_GAIN_HP = 51
+    DMG_MODIFIED = 52
+    OP_DMG_MODIFIED = 53
+    GAIN_CHANCE = 54
+    OP_GAIN_CHANCE = 55
+    GAIN_ABILITY = 56
+
+    NEXT_PHASE = 98
+    READY = 99
+    SELECT_CAT = 100
+    USE_ABILITY = 101
+    TARGET = 102
+
+
+class Request:
+
+    def __init__(self, flag, token, size):
+
+        self.flag = flag
+        self.token = token
+        self.size = size
 
 
 # Helper class that contains useful network functions
@@ -16,6 +59,16 @@ class Network:
             num >>= 8
 
         return _3byte
+
+    @staticmethod
+    def parse_request(data):
+
+        flag = data[0]
+        token = data[1:25].decode('utf-8')
+        size = int.from_bytes(data[25:28], byteorder='big')
+
+        request = Request(flag, token, size)
+        return request
 
     # Creates response header with flag and size
     @staticmethod

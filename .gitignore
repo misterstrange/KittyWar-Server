@@ -1,3 +1,4 @@
 *.pyc
 GameServer/.idea/
+GameServer/ServerUnitTests.py
 WebServer/KittyWar/migrations/

@@ -67,9 +67,10 @@ class Session(Thread):
 
     def process_request(self, request):
 
-        Logger.log("Request: " + str(request))
-
         flag = request.flag
+
+        Logger.log("Request: " + str(flag) + " " + str(request.token) +
+                   " " + str(request.size))
 
         # Check user identity for sensitive operations
         if flag > Flags.LOGOUT:
@@ -88,7 +89,7 @@ class Session(Thread):
 
             elif self.match:
 
-                self.match.lock.aquire()
+                self.match.lock.acquire()
                 self.match.process_request(request)
                 self.match.lock.release()
 

@@ -14,6 +14,17 @@ class Phases(IntEnum):
     POSTLUDE = 3
 
 
+class Moves(IntEnum):
+
+    @staticmethod
+    def valid_move(move):
+        return move in list(map(int, Moves))
+
+    PURR = 0
+    GUARD = 1
+    SCRATCH = 2
+
+
 class Player:
 
     def __init__(self, username, connection, cats):
@@ -28,9 +39,13 @@ class Player:
         self.ddodged = 0
         self.modifier = 1
         self.rability = 0
+
         self.chance_cards = []
+        self.used_cards = []
         self.cooldowns = []
 
+        self.move = None
+        self.selected_chance = False
         self.ready = False
 
     @property
@@ -39,6 +54,7 @@ class Player:
 
     @cat.setter
     def cat(self, cat):
+
         self.__cat = cat['cat_id']
         self.health = cat['health']
 
@@ -49,6 +65,16 @@ class Player:
 
         if last_index >= 0:
             return self.chance_cards[last_index]
+
+        return None
+
+    @property
+    def used_card(self):
+
+        last_index = len(self.used_cards) - 1
+
+        if last_index >= 0:
+            return self.used_cards[last_index]
 
         return None
 
@@ -193,13 +219,38 @@ class Match:
 
                 # Set and alert players of next phase
                 self.next_phase(Phases.ENACT_STRATS)
-                self.gloria_enact_strats()
+                # self.gloria_enact_strats()
 
     def gloria_enact_strats(self):
-        self.kill_match()
+
+        Logger.log("Enact Strategies phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
 
     def enact_strats(self, player, request):
-        pass
+
+        flag = request.flag
+        if flag == Flags.SELECT_MOVE:
+
+            move = Network.receive_data(player.connection, request.size)
+            valid_move = self.select_move(player, move)
+
+            response = Network.generate_responseh(Flags.SELECT_MOVE, Flags.ONE_BYTE)
+            if valid_move:
+                response.append(Flags.SUCCESS)
+            else:
+                response.append(Flags.FAILURE)
+
+            Network.send_data(player.connection, response)
+
+        elif flag == Flags.USE_CHANCE:
+
+            chance = Network.receive_data(player.connection, request.size)
+
+        elif flag == Flags.READY:
+
+            players_ready = self.player_ready(player)
+            if players_ready:
+                pass
 
     def show_cards(self):
         pass
@@ -279,6 +330,23 @@ class Match:
                 break
 
         return valid_cat
+
+    # Handles the user selecting a move
+    @staticmethod
+    def select_move(player, move):
+
+        valid_move = Moves.valid_move(move)
+        if valid_move:
+            player.move = move
+
+        return valid_move
+
+    @staticmethod
+    def select_chance(player, chance):
+
+        if chance in Chance.chance_map:
+
+            player.used_cards.append(chance)
 
     def use_passive_ability(self, player, ability_id):
 
@@ -374,10 +442,10 @@ class Ability:
 
         Logger.log(player.username + " received random ability: " + str(ability_id))
 
-    # Ability 01 - Rejuvenation
+    # Ability 00 - Rejuvenation
     # Gain 1 HP - Postlude - Cooldown: 2
     @staticmethod
-    def a_ability01(phase, player):
+    def a_ability00(phase, player):
 
         ability_used = False
         if phase == Phases.POSTLUDE:
@@ -406,11 +474,11 @@ class Ability:
 
         return ability_used
 
-    # Ability 02 - Gentleman
+    # Ability 01 - Gentleman
     # chance gained on condition - POSTLUDE
     # condition: damage dodged >= 2
     @staticmethod
-    def p_ability02(phase, player):
+    def p_ability01(phase, player):
 
         ability_used = False
         if phase == Phases.POSTLUDE:
@@ -484,15 +552,28 @@ class Ability:
 
     active_map = {
 
-        Abilities.Rejuvenation: a_ability01,
+        Abilities.Rejuvenation: a_ability00,
         Abilities.Critical: a_ability07
     }
 
     passive_map = {
 
-        Abilities.Gentleman: p_ability02,
+        Abilities.Gentleman: p_ability01,
         Abilities.Attacker: p_ability06
     }
+
+
+class Chances(IntEnum):
+
+    DOUBLE_PURR = 0
+    GUARANTEED_PURR = 1
+    PURR_DRAW = 2
+    REVERSE_SCRATCH = 3
+    GUARD_HEAL = 4
+    GUARD_DRAW = 5
+    NO_REVERSE = 6
+    NO_GUARD = 7
+    DOUBLE_SCRATCH = 8
 
 
 class Chance:
@@ -505,3 +586,74 @@ class Chance:
 
         chance_card = random.randrange(0, 9)
         player.chance_cards.append(chance_card)
+
+    @staticmethod
+    def has_chance(player, chance):
+        return player.chance_cards.count(chance) != 0
+
+    # Chance 00 - Double Purring
+    # Gain 2 HP if you don't get attacked
+    def chance_00(self, move, player):
+        # TODO
+        pass
+
+    # Chance 01 - Guaranteed Purring
+    # Gain 1 HP no matter what
+    def chance_01(self, move, player):
+        # TODO
+        pass
+
+    # Chance 02 - Purr and Draw
+    # Gain 1 chance card if you heal
+    def chance_02(self, move, player):
+        # TODO
+        pass
+
+    # Chance 03 - Reverse Scratch
+    # Reverse the damage
+    def chance_03(self, move, player):
+        # TODO
+        pass
+
+    # Chance 04 - Guard and Heal
+    # Gain 1 HP if you dodge
+    def chance_04(self, move, player):
+        # TODO
+        pass
+
+    # Chance 05 - Guard and Draw
+    # Gain 1 chance card if you dodge
+    def chance_05(self, move, player):
+        # TODO
+        pass
+
+    # Chance 06 - Cant't reverse
+    # Can't reverse the damage
+    def chance_06(self, move, player):
+        # TODO
+        pass
+
+    # Chance 07 - Can't Guard
+    # Scratch can't be dodged
+    def chance_07(self, move, player):
+        # TODO
+        pass
+
+    # Chance 08 - Double Scratch
+    # Scratch twice - x2 Damage
+    def chance_08(self, move, player):
+        # TODO
+        pass
+
+    chance_map = {
+
+        Chances.DOUBLE_PURR: chance_00,
+        Chances.GUARANTEED_PURR: chance_01,
+        Chances.PURR_DRAW: chance_02,
+        Chances.REVERSE_SCRATCH: chance_03,
+        Chances.GUARD_HEAL: chance_04,
+        Chances.GUARD_DRAW: chance_05,
+        Chances.NO_REVERSE: chance_06,
+        Chances.NO_GUARD: chance_07,
+        Chances.DOUBLE_SCRATCH: chance_08
+    }

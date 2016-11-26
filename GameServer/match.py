@@ -25,6 +25,7 @@ class Moves(IntEnum):
     PURR = 0
     GUARD = 1
     SCRATCH = 2
+    SKIP = 3
 
 
 class Player:
@@ -223,6 +224,7 @@ class Match:
                 self.next_phase(Phases.ENACT_STRATS)
                 self.gloria_enact_strats()
 
+    # Log the enact strats phase starting
     def gloria_enact_strats(self):
 
         Logger.log("Enact Strategies phase starting for " + self.player1.username +
@@ -265,11 +267,45 @@ class Match:
                 # Notify player of next round
                 self.next_phase(Phases.SHOW_CARDS)
 
+                # Before moving on check both players selected a move
+                if self.player1.move and self.player2.move:
+                    self.show_cards()
+                else:
+                    self.kill_match()
+
     def show_cards(self):
-        pass
+
+        Logger.log("Show Cards phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
+
+        # Show player1 player2's move
+        response = Network.generate_responseb(Flags.REVEAL_MOVE, Flags.ONE_BYTE, self.player2.move)
+        Network.send_data(self.player1.connection, response)
+
+        # Show player2 player1's move
+        response = Network.generate_responseb(Flags.REVEAL_MOVE, Flags.ONE_BYTE, self.player1.move)
+        Network.send_data(self.player2.connection, response)
+
+        # Show player1 player2's chance card if they selected one
+        if self.player2.selected_chance:
+            response = Network.generate_responseb(
+                Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player2.used_card)
+            Network.send_data(self.player1.connection, response)
+
+        # Show player2 player1's chance card if they selected one
+        if self.player1.selected_chance:
+            response = Network.generate_responseb(
+                Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player1.used_card)
+            Network.send_data(self.player2.connection, response)
+
+        self.next_phase(Phases.SETTLE_STRATS)
+        self.settle_strats()
 
     def settle_strats(self):
-        pass
+
+        Logger.log("Settle Strategies phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
+        self.kill_match()
 
     def gloria_postlude(self):
         pass
@@ -358,10 +394,11 @@ class Match:
     def select_chance(player, chance):
 
         valid_chance = Chances.valid_chance(chance)
+        matches_move = Chance.matches_move(player, chance)
         has_chance = Chance.has_chance(player, chance)
         selected_chance = player.selected_chance
 
-        valid = valid_chance and has_chance and not selected_chance
+        valid = valid_chance and matches_move and has_chance and not selected_chance
         if valid:
 
             player.used_cards.append(chance)
@@ -616,6 +653,23 @@ class Chance:
     @staticmethod
     def has_chance(player, chance):
         return player.chance_cards.count(chance) != 0
+
+    @staticmethod
+    def matches_move(player, chance):
+
+        matches = False
+        if player.move:
+
+            if chance <= Chances.PURR_DRAW:
+                matches = player.move == Moves.PURR
+
+            elif chance <= Chances.GUARD_DRAW:
+                matches = player.move == Moves.GUARD
+
+            else:
+                matches = player.move == Moves.SCRATCH
+
+        return matches
 
     # Chance 00 - Double Purring
     # Gain 2 HP if you don't get attacked

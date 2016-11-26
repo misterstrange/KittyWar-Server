@@ -127,7 +127,7 @@ class Match:
         flag = request.flag
         if flag == Flags.SELECT_CAT:
 
-            cat_id = request.body
+            cat_id = int(request.body)
             valid_cat = self.select_cat(player, cat_id)
 
             if valid_cat:

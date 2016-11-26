@@ -11,7 +11,9 @@ class Phases(IntEnum):
     SETUP = 0
     PRELUDE = 1
     ENACT_STRATS = 2
-    POSTLUDE = 3
+    SHOW_CARDS = 3
+    SETTLE_STRATS = 4
+    POSTLUDE = 5
 
 
 class Moves(IntEnum):
@@ -95,7 +97,7 @@ class Match:
         if self.match_valid:
 
             player = self.get_player(username)
-            phase_map[self.phase](player, request)
+            phase_map[self.phase](self, player, request)
 
         return self.match_valid
 
@@ -124,7 +126,7 @@ class Match:
         flag = request.flag
         if flag == Flags.SELECT_CAT:
 
-            cat_id = Network.receive_data(player.connetion, request.size)
+            cat_id = request.body
             valid_cat = self.select_cat(player, cat_id)
 
             if valid_cat:
@@ -219,7 +221,7 @@ class Match:
 
                 # Set and alert players of next phase
                 self.next_phase(Phases.ENACT_STRATS)
-                # self.gloria_enact_strats()
+                self.gloria_enact_strats()
 
     def gloria_enact_strats(self):
 
@@ -231,7 +233,7 @@ class Match:
         flag = request.flag
         if flag == Flags.SELECT_MOVE:
 
-            move = Network.receive_data(player.connection, request.size)
+            move = request.body
             valid_move = self.select_move(player, move)
 
             response = Network.generate_responseh(Flags.SELECT_MOVE, Flags.ONE_BYTE)
@@ -244,13 +246,24 @@ class Match:
 
         elif flag == Flags.USE_CHANCE:
 
-            chance = Network.receive_data(player.connection, request.size)
+            chance = request.body
+            valid_chance = self.select_chance(player, chance)
+
+            response = Network.generate_responseh(Flags.USE_CHANCE, Flags.ONE_BYTE)
+            if valid_chance:
+                response.append(Flags.SUCCESS)
+            else:
+                response.append(Flags.FAILURE)
+
+            Network.send_data(player.connection, response)
 
         elif flag == Flags.READY:
 
             players_ready = self.player_ready(player)
             if players_ready:
-                pass
+
+                # Notify player of next round
+                self.next_phase(Phases.SHOW_CARDS)
 
     def show_cards(self):
         pass
@@ -320,7 +333,7 @@ class Match:
         valid_cat = False
         for cat in player.cats:
 
-            if cat['cat_id'] == cat_id:
+            if cat == cat_id:
 
                 Logger.log(player.username + " has selected their cat" +
                            " - id: " + str(cat_id))
@@ -344,9 +357,18 @@ class Match:
     @staticmethod
     def select_chance(player, chance):
 
-        if chance in Chance.chance_map:
+        valid_chance = Chances.valid_chance(chance)
+        has_chance = Chance.has_chance(player, chance)
+        selected_chance = player.selected_chance
+
+        valid = valid_chance and has_chance and not selected_chance
+        if valid:
 
             player.used_cards.append(chance)
+            player.chance_cards.remove(chance)
+            player.selected_chance = True
+
+        return valid
 
     def use_passive_ability(self, player, ability_id):
 
@@ -364,7 +386,7 @@ class Match:
 
     def use_active_ability(self, player, request):
 
-        ability_id = Network.receive_data(player.connection, request.size)
+        ability_id = request.body
 
         # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player.cat or ability_id == player.rability
@@ -564,6 +586,10 @@ class Ability:
 
 
 class Chances(IntEnum):
+
+    @staticmethod
+    def valid_chance(chance):
+        return chance in list(map(int, Chances))
 
     DOUBLE_PURR = 0
     GUARANTEED_PURR = 1

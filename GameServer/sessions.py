@@ -70,14 +70,17 @@ class Session(Thread):
         flag = request.flag
 
         Logger.log("Request: " + str(flag) + " " + str(request.token) +
-                   " " + str(request.size) + str(request.body))
+                   " " + str(request.size))
+        Logger.log("Body: " + str(request.body))
 
         # Check user identity for sensitive operations
         if flag > Flags.LOGOUT:
             if not self.verified(request):
+
                 Logger.log(
                     self.userprofile['username'] + " is not authorized to use flag " +
                     str(flag) + ", closing this connection")
+
                 return False
 
         request_successful = True
@@ -126,7 +129,6 @@ class Session(Thread):
             return False
 
         # Log the username
-        username = username.decode('utf-8')
         Logger.log("Body: " + username)
         self.userprofile['username'] = username
 
@@ -277,7 +279,7 @@ class Session(Thread):
         Logger.log("Match starting for " + self.userprofile['username'])
 
         # At this point a match has been found so notify client
-        response = Network.generate_responseb(request.flag, 1, str(Flags.SUCCESS))
+        response = Network.generate_responseb(request.flag, Flags.ONE_BYTE, Flags.SUCCESS)
         Network.send_data(self.client, response)
 
         return True

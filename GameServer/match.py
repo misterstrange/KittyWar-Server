@@ -58,8 +58,8 @@ class Player:
     @cat.setter
     def cat(self, cat):
 
-        self.__cat = cat['cat_id']
-        self.health = cat['health']
+        self.__cat = cat
+        self.health = Cats.get_hp(cat)
 
     @property
     def chance_card(self):
@@ -106,7 +106,7 @@ class Match:
     def kill_match(self):
 
         self.match_valid = False
-        self.alert_players(Flags.END_MATCH, 1, Flags.ERROR)
+        self.alert_players(Flags.END_MATCH, Flags.ONE_BYTE, Flags.ERROR)
 
     def disconnect(self, username):
 
@@ -118,7 +118,7 @@ class Match:
         opponent = self.get_opponent(username)
 
         # The disconnected player gets a loss - notify the winning player
-        response = Network.generate_responseb(Flags.END_MATCH, 1, Flags.SUCCESS)
+        response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
         Network.send_data(opponent, response)
 
     # Phase before prelude for handling match preparation
@@ -127,21 +127,26 @@ class Match:
         flag = request.flag
         if flag == Flags.SELECT_CAT:
 
-            cat_id = int(request.body)
+            cat_id = -1
+            if request.body:
+                cat_id = int(request.body)
+
             valid_cat = self.select_cat(player, cat_id)
 
+            response = Network.generate_responseh(Flags.SELECT_CAT, Flags.ONE_BYTE)
             if valid_cat:
 
-                # Notify player selection was successful
-                response = Network.generate_responseb(Flags.SELECT_CAT, Flags.ONE_BYTE, Flags.SUCCESS)
-                Network.send_data(player.connection, response)
+                response.append(Flags.SUCCESS)
+                Logger.log(player.username + " has selected their cat" +
+                           " - id: " + str(cat_id))
 
             else:
 
-                # If not valid end match in an error
-                Logger.log("Illegal cat selection from " +
-                           player.username + ", ending match with error status")
-                self.kill_match()
+                response.append(Flags.FAILURE)
+                Logger.log(player.username + " could not select their cat" +
+                           " - id: " + str(cat_id))
+
+            Network.send_data(player.connection, response)
 
         elif flag == Flags.READY:
 
@@ -235,27 +240,47 @@ class Match:
         flag = request.flag
         if flag == Flags.SELECT_MOVE:
 
-            move = request.body
+            move = -1
+            if request.body:
+                move = int(request.body)
+
             valid_move = self.select_move(player, move)
 
             response = Network.generate_responseh(Flags.SELECT_MOVE, Flags.ONE_BYTE)
             if valid_move:
+
                 response.append(Flags.SUCCESS)
+                Logger.log(player.username + " has selected their move" +
+                           " - id: " + str(move))
+
             else:
+
                 response.append(Flags.FAILURE)
+                Logger.log(player.username + " could not select their move" +
+                           " - id: " + str(move))
 
             Network.send_data(player.connection, response)
 
         elif flag == Flags.USE_CHANCE:
 
-            chance = request.body
+            chance = -1
+            if request.body:
+                chance = int(request.body)
+
             valid_chance = self.select_chance(player, chance)
 
             response = Network.generate_responseh(Flags.USE_CHANCE, Flags.ONE_BYTE)
             if valid_chance:
+
                 response.append(Flags.SUCCESS)
+                Logger.log(player.username + " has selected their chance" +
+                           " - id: " + str(chance))
+
             else:
+
                 response.append(Flags.FAILURE)
+                Logger.log(player.username + " could not select their chance" +
+                           " - id: " + str(chance))
 
             Network.send_data(player.connection, response)
 
@@ -334,7 +359,7 @@ class Match:
 
         # Check if there is a body to send
         if size is None:
-            response = Network.generate_responseh(flag, 0)
+            response = Network.generate_responseh(flag, Flags.ZERO_BYTE)
 
         else:
             response = Network.generate_responseb(flag, size, body)
@@ -367,12 +392,10 @@ class Match:
 
         # Verify user can select the cat they have
         valid_cat = False
+
         for cat in player.cats:
 
             if cat == cat_id:
-
-                Logger.log(player.username + " has selected their cat" +
-                           " - id: " + str(cat_id))
 
                 player.cat = cat
                 valid_cat = True
@@ -423,7 +446,9 @@ class Match:
 
     def use_active_ability(self, player, request):
 
-        ability_id = request.body
+        ability_id = -1
+        if request.body:
+            ability_id = int(request.body)
 
         # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player.cat or ability_id == player.rability
@@ -457,6 +482,23 @@ phase_map = {
     Phases.ENACT_STRATS: Match.enact_strats,
     Phases.POSTLUDE: Match.postlude
 }
+
+
+class Cats(IntEnum):
+
+    @staticmethod
+    def get_hp(cat_id):
+
+        if cat_id == 0:
+            return Cats.Persian
+        elif cat_id == 1:
+            return Cats.Ragdoll
+        elif cat_id == 2:
+            return Cats.Maine
+
+    Persian = 8
+    Ragdoll = 10
+    Maine = 12
 
 
 class Abilities(IntEnum):

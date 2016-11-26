@@ -8,7 +8,7 @@ import tkinter.scrolledtext
 
 from network import Network
 from sessions import Session
-from match import Match
+from match import Match, Player
 from threading import Thread, Event
 from queue import Queue
 from logger import Logger
@@ -159,21 +159,22 @@ def match_maker(match_event, lobby):
 
 def create_match(session1, session2):
 
-    player1_name = session1.userprofile['username']
-    player2_name = session2.userprofile['username']
+    p1_name = session1.userprofile['username']
+    p1_connection = session1.client
+    p1_cats = session1.userprofile['records']['cats']
+    player1 = Player(p1_name, p1_connection, p1_cats)
 
-    Logger.log("Creating match for " + player1_name +
-               " & " + player2_name)
+    p2_name = session2.userprofile['username']
+    p2_connection = session2.client
+    p2_cats = session2.userprofile['records']['cats']
+    player2 = Player(p2_name, p2_connection, p2_cats)
+
+    Logger.log("Creating match for " + p1_name +
+               " & " + p2_name)
 
     match = Match()
-
-    match.player1.username = player1_name
-    match.player1.connection = session1.client
-    match.player1.cats = session1.userprofile['records']['cats']
-
-    match.player2.username = player2_name
-    match.player2.connection = session2.client
-    match.player2.cats = session2.userprofile['records']['cats']
+    match.player1 = player1
+    match.player2 = player2
 
     session1.match = match
     session2.match = match

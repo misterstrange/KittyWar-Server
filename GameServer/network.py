@@ -43,7 +43,8 @@ class Flags(IntEnum):
     READY = 99
     SELECT_CAT = 100
     USE_ABILITY = 101
-    TARGET = 102
+    SELECT_MOVE = 102
+    USE_CHANCE = 103
 
 
 class Request:

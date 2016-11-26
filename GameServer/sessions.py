@@ -39,7 +39,7 @@ class Session(Thread):
                 break
 
             # Process clients request and check if successful
-            request = Network.parse_request(data)
+            request = Network.parse_request(self.client, data)
             successful = self.process_request(request)
             if not successful:
                 break
@@ -70,7 +70,7 @@ class Session(Thread):
         flag = request.flag
 
         Logger.log("Request: " + str(flag) + " " + str(request.token) +
-                   " " + str(request.size))
+                   " " + str(request.size) + str(request.body))
 
         # Check user identity for sensitive operations
         if flag > Flags.LOGOUT:
@@ -90,7 +90,7 @@ class Session(Thread):
             elif self.match:
 
                 self.match.lock.acquire()
-                self.match.process_request(request)
+                self.match.process_request(self.userprofile['username'], request)
                 self.match.lock.release()
 
                 # If problem with match end and notify client
@@ -119,13 +119,13 @@ class Session(Thread):
         response = Network.generate_responseh(request.flag, 1)
 
         # Retrieve username from request body
-        username = Network.receive_data(self.client, request.size)
+        username = request.body
 
         # If the user does not send username or connection error close connection
         if username is None:
             return False
 
-        # Convert username to string by decoding
+        # Log the username
         username = username.decode('utf-8')
         Logger.log("Body: " + username)
         self.userprofile['username'] = username
@@ -135,7 +135,7 @@ class Session(Thread):
             'SELECT token FROM KittyWar_userprofile WHERE user_id=\'{}\';'
         ]
 
-        # Retreive user id tied to username
+        # Retrieve user id tied to username
         result = Network.sql_query(sql_stmts[0].format(username))
         if result:
 

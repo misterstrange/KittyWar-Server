@@ -38,6 +38,8 @@ class Flags(IntEnum):
     OP_GAIN_CHANCE = 55
     GAIN_ABILITY = 56
     GAIN_CHANCES = 57
+    REVEAL_MOVE = 58
+    REVEAL_CHANCE = 59
 
     NEXT_PHASE = 98
     READY = 99
@@ -49,11 +51,12 @@ class Flags(IntEnum):
 
 class Request:
 
-    def __init__(self, flag, token, size):
+    def __init__(self, flag, token, size, body):
 
         self.flag = flag
         self.token = token
         self.size = size
+        self.body = body
 
 
 # Helper class that contains useful network functions
@@ -72,13 +75,17 @@ class Network:
         return _3byte
 
     @staticmethod
-    def parse_request(data):
+    def parse_request(client, data):
 
         flag = data[0]
         token = data[1:25].decode('utf-8')
         size = int.from_bytes(data[25:28], byteorder='big')
 
-        request = Request(flag, token, size)
+        body = None
+        if size > 0:
+            body = Network.receive_data(client, size)
+
+        request = Request(flag, token, size, body)
         return request
 
     # Creates response header with flag and size
@@ -99,7 +106,7 @@ class Network:
         if isinstance(body, str):
             response += body.encode('utf-8')
         else:
-            response += body
+            response.append(body)
 
         return response
 

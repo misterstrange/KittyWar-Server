@@ -6,8 +6,17 @@ from enum import IntEnum
 # Enum to map flag literals to a name
 class Flags(IntEnum):
 
+    @staticmethod
+    def valid_flag(flag):
+        return flag in list(map(int, Flags))
+
     FAILURE = 0
     SUCCESS = 1
+    ERROR = 3
+
+    ZERO_BYTE = 0
+    ONE_BYTE = 1
+    TWO_BYTE = 2
 
     LOGIN = 0
     LOGOUT = 1
@@ -28,6 +37,7 @@ class Flags(IntEnum):
     GAIN_CHANCE = 54
     OP_GAIN_CHANCE = 55
     GAIN_ABILITY = 56
+    GAIN_CHANCES = 57
 
     NEXT_PHASE = 98
     READY = 99
@@ -84,7 +94,12 @@ class Network:
     def generate_responseb(flag, size, body):
 
         response = Network.generate_responseh(flag, size)
-        response += body.encode('utf-8')
+
+        if isinstance(body, str):
+            response += body.encode('utf-8')
+        else:
+            response += body
+
         return response
 
     # Creates and returns a database connection

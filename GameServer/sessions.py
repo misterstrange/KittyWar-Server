@@ -79,23 +79,22 @@ class Session(Thread):
                     str(flag) + ", closing this connection")
                 return False
 
-        # Check if the flag is valid
-        mappable = flag in list(map(int, Flags))
-
         request_successful = True
-        if flag in request_map:
-            request_successful = request_map[flag](self, request)
+        # Check if the flag is valid
+        if Flags.valid_flag(flag):
 
-        elif self.match and mappable:
+            if flag in request_map:
+                request_successful = request_map[flag](self, request)
 
-            self.match.lock.aquire()
-            match_valid = self.match.process_request(request)
-            self.match.lock.release()
+            elif self.match:
 
-            # If problem with match end and notify client
-            if not match_valid:
+                self.match.lock.aquire()
+                self.match.process_request(request)
+                self.match.lock.release()
 
-                self.match = None
+                # If problem with match end and notify client
+                if not self.match.match_valid:
+                    self.match = None
 
         else:
             Logger.log(

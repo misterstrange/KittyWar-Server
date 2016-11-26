@@ -85,6 +85,9 @@ class Network:
         if size > 0:
             body = Network.receive_data(client, size)
 
+        if body:
+            body = body.decode('utf-8')
+
         request = Request(flag, token, size, body)
         return request
 

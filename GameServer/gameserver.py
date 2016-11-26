@@ -41,7 +41,7 @@ def main():
     # repeatedly pulling this information for each session on request
     card_information = pull_card_data()
 
-    # Set GameThread variables for debugging/matchmaking/information to apply to all sessions
+    # Set global Session variables for debugging/matchmaking/information to apply to all sessions
     Session.card_information = card_information
     Session.lobby = lobby
     Session.match_event = match_event

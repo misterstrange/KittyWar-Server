@@ -163,7 +163,8 @@ class Match:
                 self.next_phase(Phases.PRELUDE)
 
                 # Do not proceed if someone did not select a cat but readied up
-                if self.player1.cat and self.player2.cat:
+                if self.player1.cat is not None and \
+                        self.player2.cat is not None:
 
                     self.post_setup()
                     self.gloria_prelude()
@@ -298,8 +299,11 @@ class Match:
                 self.next_phase(Phases.SHOW_CARDS)
 
                 # Before moving on check both players selected a move
-                if self.player1.move and self.player2.move:
+                if self.player1.move is not None and \
+                        self.player2.move is not None:
+
                     self.show_cards()
+
                 else:
                     self.kill_match()
 

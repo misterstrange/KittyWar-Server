@@ -1,5 +1,6 @@
 import pymysql
 from pymysql.cursors import DictCursor
+from logger import Logger
 from enum import IntEnum
 
 
@@ -160,6 +161,8 @@ class Network:
     # Sends a response to client based on previous request
     @staticmethod
     def send_data(client, data):
+
+        Logger.log("Data being sent " + str(data))
 
         # noinspection PyBroadException
         try:

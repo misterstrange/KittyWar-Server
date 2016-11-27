@@ -169,10 +169,15 @@ class Match:
                     self.gloria_prelude()
 
                 else:
+
+                    Logger.log("One of the players did not select a cat - Killing the match")
                     self.kill_match()
 
     # Notifies players about cats abilities and chances before game moves on
     def post_setup(self):
+
+        Logger.log("Post setup running for " + self.player1.username +
+                   ", " + self.player2.username)
 
         # Send player2 player1's cat
         response = Network.generate_responseb(Flags.OP_CAT, Flags.ONE_BYTE, self.player1.cat)

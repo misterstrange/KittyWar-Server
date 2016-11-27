@@ -445,7 +445,7 @@ class Match:
         if useable and Ability.is_passive(ability_id):
 
             Logger.log(player.username +
-                       " using passive ability - id: " + ability_id)
+                       " using passive ability - id: " + str(ability_id))
 
             ability_used = Ability.passive_map[ability_id](self.phase, player)
             if ability_used:
@@ -467,7 +467,7 @@ class Match:
         if useable and Ability.is_active(ability_id):
 
             Logger.log(player.username +
-                       " using active ability - id: " + ability_id)
+                       " using active ability - id: " + str(ability_id))
 
             ability_used = Ability.active_map[ability_id](self.phase, player)
             if ability_used:

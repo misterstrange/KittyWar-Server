@@ -2,11 +2,15 @@ from queue import Queue
 
 
 class Logger:
+
+    logging = True
     _log_queue = Queue()
 
     @staticmethod
     def log(message):
-        Logger._log_queue.put(message)
+
+        if Logger.logging:
+            Logger._log_queue.put(message)
 
     @staticmethod
     def log_count():

@@ -1,13 +1,23 @@
 import pymysql
 from pymysql.cursors import DictCursor
+from logger import Logger
 from enum import IntEnum
 
 
 # Enum to map flag literals to a name
 class Flags(IntEnum):
 
+    @staticmethod
+    def valid_flag(flag):
+        return flag in list(map(int, Flags))
+
     FAILURE = 0
     SUCCESS = 1
+    ERROR = 3
+
+    ZERO_BYTE = 0
+    ONE_BYTE = 1
+    TWO_BYTE = 2
 
     LOGIN = 0
     LOGOUT = 1
@@ -28,21 +38,26 @@ class Flags(IntEnum):
     GAIN_CHANCE = 54
     OP_GAIN_CHANCE = 55
     GAIN_ABILITY = 56
+    GAIN_CHANCES = 57
+    REVEAL_MOVE = 58
+    REVEAL_CHANCE = 59
 
     NEXT_PHASE = 98
     READY = 99
     SELECT_CAT = 100
     USE_ABILITY = 101
-    TARGET = 102
+    SELECT_MOVE = 102
+    USE_CHANCE = 103
 
 
 class Request:
 
-    def __init__(self, flag, token, size):
+    def __init__(self, flag, token, size, body):
 
         self.flag = flag
         self.token = token
         self.size = size
+        self.body = body
 
 
 # Helper class that contains useful network functions
@@ -61,13 +76,20 @@ class Network:
         return _3byte
 
     @staticmethod
-    def parse_request(data):
+    def parse_request(client, data):
 
         flag = data[0]
         token = data[1:25].decode('utf-8')
         size = int.from_bytes(data[25:28], byteorder='big')
 
-        request = Request(flag, token, size)
+        body = None
+        if size > 0:
+            body = Network.receive_data(client, size)
+
+        if body:
+            body = body.decode('utf-8')
+
+        request = Request(flag, token, size, body)
         return request
 
     # Creates response header with flag and size
@@ -84,7 +106,12 @@ class Network:
     def generate_responseb(flag, size, body):
 
         response = Network.generate_responseh(flag, size)
-        response += body.encode('utf-8')
+
+        if isinstance(body, str):
+            response += body.encode('utf-8')
+        else:
+            response.append(body)
+
         return response
 
     # Creates and returns a database connection
@@ -133,7 +160,9 @@ class Network:
 
     # Sends a response to client based on previous request
     @staticmethod
-    def send_data(client, data):
+    def send_data(username, client, data):
+
+        Logger.log(username + " Response: " + str(data))
 
         # noinspection PyBroadException
         try:

@@ -160,9 +160,9 @@ class Network:
 
     # Sends a response to client based on previous request
     @staticmethod
-    def send_data(client, data):
+    def send_data(username, client, data):
 
-        Logger.log("Data being sent " + str(data))
+        Logger.log(username + " Response: " + str(data))
 
         # noinspection PyBroadException
         try:

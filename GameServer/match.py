@@ -119,7 +119,7 @@ class Match:
 
         # The disconnected player gets a loss - notify the winning player
         response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
-        Network.send_data(opponent, response)
+        Network.send_data(opponent.username, opponent, response)
 
     # Phase before prelude for handling match preparation
     def setup(self, player, request):
@@ -146,7 +146,7 @@ class Match:
                 Logger.log(player.username + " could not select their cat" +
                            " - id: " + str(cat_id))
 
-            Network.send_data(player.connection, response)
+            Network.send_data(player.username, player.connection, response)
 
         elif flag == Flags.READY:
 
@@ -182,31 +182,31 @@ class Match:
 
         # Send player2 player1's cat
         response = Network.generate_responseb(Flags.OP_CAT, Flags.ONE_BYTE, self.player1.cat)
-        Network.send_data(self.player2.connection, response)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Send player1 player2's cat
         response = Network.generate_responseb(Flags.OP_CAT, Flags.ONE_BYTE, self.player2.cat)
-        Network.send_data(self.player1.connection, response)
+        Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Send player1 their random ability
         response = Network.generate_responseb(Flags.GAIN_ABILITY, Flags.ONE_BYTE, self.player1.rability)
-        Network.send_data(self.player1.connection, response)
+        Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Send player2 their random ability
         response = Network.generate_responseb(Flags.GAIN_ABILITY, Flags.ONE_BYTE, self.player2.rability)
-        Network.send_data(self.player2.connection, response)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Send player1 their two random chance cards
         response = Network.generate_responseh(Flags.GAIN_CHANCES, Flags.TWO_BYTE)
         response.append(self.player1.chance_cards[0])
         response.append(self.player1.chance_cards[1])
-        Network.send_data(self.player1.connection, response)
+        Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Send player2 their two random chance cards
         response = Network.generate_responseh(Flags.GAIN_CHANCES, Flags.TWO_BYTE)
         response.append(self.player2.chance_cards[0])
         response.append(self.player2.chance_cards[1])
-        Network.send_data(self.player2.connection, response)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
     # Activates any prelude passive abilities the players have
     def gloria_prelude(self):
@@ -265,7 +265,7 @@ class Match:
                 Logger.log(player.username + " could not select their move" +
                            " - id: " + str(move))
 
-            Network.send_data(player.connection, response)
+            Network.send_data(player.username, player.connection, response)
 
         elif flag == Flags.USE_CHANCE:
 
@@ -288,7 +288,7 @@ class Match:
                 Logger.log(player.username + " could not select their chance" +
                            " - id: " + str(chance))
 
-            Network.send_data(player.connection, response)
+            Network.send_data(player.username, player.connection, response)
 
         elif flag == Flags.READY:
 
@@ -314,23 +314,23 @@ class Match:
 
         # Show player1 player2's move
         response = Network.generate_responseb(Flags.REVEAL_MOVE, Flags.ONE_BYTE, self.player2.move)
-        Network.send_data(self.player1.connection, response)
+        Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Show player2 player1's move
         response = Network.generate_responseb(Flags.REVEAL_MOVE, Flags.ONE_BYTE, self.player1.move)
-        Network.send_data(self.player2.connection, response)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Show player1 player2's chance card if they selected one
         if self.player2.selected_chance:
             response = Network.generate_responseb(
                 Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player2.used_card)
-            Network.send_data(self.player1.connection, response)
+            Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Show player2 player1's chance card if they selected one
         if self.player1.selected_chance:
             response = Network.generate_responseb(
                 Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player1.used_card)
-            Network.send_data(self.player2.connection, response)
+            Network.send_data(self.player2.username, self.player2.connection, response)
 
         self.next_phase(Phases.SETTLE_STRATS)
         self.settle_strats()
@@ -373,8 +373,8 @@ class Match:
         else:
             response = Network.generate_responseb(flag, size, body)
 
-        Network.send_data(self.player1.connection, response)
-        Network.send_data(self.player2.connection, response)
+        Network.send_data(self.player1.username, self.player1.connection, response)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
     # Move onto the next phase specified and alert the players
     def next_phase(self, phase):
@@ -482,7 +482,7 @@ class Match:
         else:
             response.append(Flags.FAILURE)
 
-        Network.send_data(player.connection, response)
+        Network.send_data(player.username, player.connection, response)
 
 phase_map = {
 
@@ -655,10 +655,10 @@ class Ability:
                 Flags.OP_GAIN_CHANCE, Flags.ZERO_BYTE)
 
         if player_response:
-            Network.send_data(player.connection, player_response)
+            Network.send_data(player.username, player.connection, player_response)
 
         if opponent_response:
-            Network.send_data(opponent.connection, opponent_response)
+            Network.send_data(opponent.username, opponent.connection, opponent_response)
 
 active_map = {
 

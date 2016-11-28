@@ -164,28 +164,30 @@ class Session(Thread):
                 "No username/id found for " + username + ", force closing connection")
             return False
 
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Logs the user out by deleting their token and ending the session
     def logout(self, request=None):
 
         # Generate response to notify logout completed
-        response = Network.generate_responseh(Flags.LOGOUT, 1)
+        response = Network.generate_responseh(Flags.LOGOUT, Flags.ONE_BYTE)
 
         if self.authenticated:
+
+            Logger.log(self.userprofile['username'] + " is logging out")
 
             sql_stmt = 'UPDATE KittyWar_userprofile SET token='' WHERE user_id=\'{}\';'
             Network.sql_query(sql_stmt.format(self.userprofile['userid']))
             self.authenticated = False
 
-            Logger.log(self.userprofile['username'] + " logged out")
+            Logger.log(self.userprofile['username'] + " has logged out")
             response.append(Flags.SUCCESS)
 
         else:
             response.append(Flags.FAILURE)
 
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return False
 
     def _user_profile(self):
@@ -216,7 +218,7 @@ class Session(Thread):
 
         body = str(self.userprofile['records'])
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
 
         return True
 
@@ -225,7 +227,7 @@ class Session(Thread):
 
         body = str(self.card_information)
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Sends all cat card data to the client
@@ -233,7 +235,7 @@ class Session(Thread):
 
         body = str(self.card_information['cats'])
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Sends all moveset card data to the client
@@ -241,7 +243,7 @@ class Session(Thread):
 
         body = str(self.card_information['moves'])
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Sends all chance card data to the client
@@ -249,7 +251,7 @@ class Session(Thread):
 
         body = str(self.card_information['chances'])
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Sends all ability card data to the client
@@ -257,7 +259,7 @@ class Session(Thread):
 
         body = str(self.card_information['abilities'])
         response = Network.generate_responseb(request.flag, len(body), body)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
         return True
 
     # Finds a match and records match results once match is finished
@@ -281,7 +283,7 @@ class Session(Thread):
 
         # At this point a match has been found so notify client
         response = Network.generate_responseb(request.flag, Flags.ONE_BYTE, Flags.SUCCESS)
-        Network.send_data(self.client, response)
+        Network.send_data(self.userprofile['username'], self.client, response)
 
         return True
 

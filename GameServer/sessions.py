@@ -263,11 +263,12 @@ class Session(Thread):
     # Finds a match and records match results once match is finished
     def find_match(self, request):
 
-        Logger.log(self.userprofile['username'] + " is finding a match")
-        self.lobby.put(self)
-
+        # Before finding a match ensure the user has their profile loaded
         if 'records' not in self.userprofile:
             self._user_profile()
+
+        Logger.log(self.userprofile['username'] + " is finding a match")
+        self.lobby.put(self)
 
         # Periodically notify matchmaker and wait until match is found
         while self.match is None:

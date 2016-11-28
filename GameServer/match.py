@@ -447,7 +447,7 @@ class Match:
             Logger.log(player.username +
                        " using passive ability - id: " + str(ability_id))
 
-            ability_used = Ability.passive_map[ability_id](self.phase, player)
+            ability_used = passive_map[ability_id](self.phase, player)
             if ability_used:
 
                 opponent = self.get_opponent(player.username)
@@ -469,7 +469,7 @@ class Match:
             Logger.log(player.username +
                        " using active ability - id: " + str(ability_id))
 
-            ability_used = Ability.active_map[ability_id](self.phase, player)
+            ability_used = active_map[ability_id](self.phase, player)
             if ability_used:
 
                 opponent = self.get_player(player.username)
@@ -523,12 +523,12 @@ class Ability:
     # Returns true if the ability is an active ability
     @staticmethod
     def is_active(ability_id):
-        return ability_id in Ability.active_map
+        return ability_id in active_map
 
     # Returns true if the ability is a passive ability
     @staticmethod
     def is_passive(ability_id):
-        return ability_id in Ability.passive_map
+        return ability_id in passive_map
 
     # Checks if an ability is on cooldown
     @staticmethod
@@ -660,17 +660,17 @@ class Ability:
         if opponent_response:
             Network.send_data(opponent.connection, opponent_response)
 
-    active_map = {
+active_map = {
 
-        Abilities.Rejuvenation: a_ability00,
-        Abilities.Critical: a_ability07
-    }
+    Abilities.Rejuvenation: Ability.a_ability00,
+    Abilities.Critical: Ability.a_ability07
+}
 
-    passive_map = {
+passive_map = {
 
-        Abilities.Gentleman: p_ability01,
-        Abilities.Attacker: p_ability06
-    }
+    Abilities.Gentleman: Ability.p_ability01,
+    Abilities.Attacker: Ability.p_ability06
+}
 
 
 class Chances(IntEnum):

@@ -1,10 +1,16 @@
 import unittest
 
-from match import Match, Ability, Chance, Player, Phases
+from match import Match, Ability, Chance, Player, Phases, active_map, passive_map
 from network import Network, Flags
 
 
 class TestServerMethods(unittest.TestCase):
+
+    """
+        --------
+        SPRINT 3
+        --------
+    """
 
     # Set up player with two cats
     def setUp(self):
@@ -16,7 +22,7 @@ class TestServerMethods(unittest.TestCase):
 
         ba = Network.int_3byte(Flags.ERROR)
         ba.append(Flags.ERROR)
-        print(ba)
+        self.assertEqual(str(ba), "bytearray(b'\\x00\\x00\\x03\\x03')")
 
     # Test player cat property
     def test_player_cat(self):
@@ -117,6 +123,9 @@ class TestServerMethods(unittest.TestCase):
 
         correct_phase = Phases.POSTLUDE
         wrong_phase = Phases.PRELUDE
+
+        ability_used = passive_map[1](wrong_phase, self.player)
+        self.assertFalse(ability_used)
 
         ability_used = Ability.p_ability01(wrong_phase, self.player)
         self.assertFalse(ability_used)

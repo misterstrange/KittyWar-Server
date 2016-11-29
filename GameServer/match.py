@@ -129,7 +129,7 @@ class Match:
 
             cat_id = -1
             if request.body:
-                cat_id = Network.byte_int(request.body)
+                cat_id = int(request.body)
 
             valid_cat = self.select_cat(player, cat_id)
 
@@ -248,7 +248,7 @@ class Match:
 
             move = -1
             if request.body:
-                move = Network.byte_int(request.body)
+                move = int(request.body)
 
             valid_move = self.select_move(player, move)
 
@@ -271,7 +271,7 @@ class Match:
 
             chance = -1
             if request.body:
-                chance = Network.byte_int(request.body)
+                chance = int(request.body)
 
             valid_chance = self.select_chance(player, chance)
 
@@ -350,6 +350,8 @@ class Match:
         Logger.log("Settle Strategies phase starting for " + self.player1.username +
                    ", " + self.player2.username)
 
+        # TODO
+
     def settle_strats(self, player, request):
 
         flag = request.flag
@@ -357,14 +359,32 @@ class Match:
 
             players_ready = self.player_ready(player)
             if players_ready:
-                self.next_phase(Phases.SETTLE_STRATS)
-                self.gloria_settle_strats()
+                self.next_phase(Phases.POSTLUDE)
+                self.gloria_postlude()
 
     def gloria_postlude(self):
-        pass
 
-    def postlude(self):
-        pass
+        Logger.log("Postlude phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
+
+        self.use_passive_ability(self.player1, self.player1.cat)
+        self.use_passive_ability(self.player1, self.player1.rability)
+
+        self.use_passive_ability(self.player2, self.player2.cat)
+        self.use_passive_ability(self.player2, self.player2.rability)
+
+    def postlude(self, player, request):
+
+        flag = request.flag
+        if flag == Flags.USE_ABILITY:
+            self.use_active_ability(player, request)
+
+        elif flag == Flags.READY:
+
+            players_ready = self.player_ready(player)
+            if players_ready:
+                self.next_phase(Phases.PRELUDE)
+                self.gloria_prelude()
 
     # Returns player one or two based on username
     def get_player(self, username):
@@ -476,7 +496,7 @@ class Match:
 
         ability_id = -1
         if request.body:
-            ability_id = Network.byte_int(request.body)
+            ability_id = int(request.body)
 
         # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player.cat or ability_id == player.rability

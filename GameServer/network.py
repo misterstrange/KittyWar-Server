@@ -75,15 +75,10 @@ class Network:
 
         return _3byte
 
-    # Used to change the request body into an int
-    @staticmethod
-    def byte_int(byte):
-
-        byte = byte.encode('utf-8')
-        return int.from_bytes(byte, byteorder='big')
-
     @staticmethod
     def parse_request(client, data):
+
+        Logger.log("Raw Request: " + str(data))
 
         flag = data[0]
         token = data[1:25].decode('utf-8')
@@ -92,6 +87,7 @@ class Network:
         body = None
         if size > 0:
             body = Network.receive_data(client, size)
+            Logger.log("Raw Body: " + str(body))
 
         if body:
             body = body.decode('utf-8')

@@ -37,11 +37,19 @@ class Player:
         self.cats = cats
 
         self.__cat = None
-        self.health = 0
-        self.ddealt = 0
-        self.ddodged = 0
-        self.modifier = 1
         self.rability = 0
+        self.health = 0
+        self.healed = 0
+
+        self.base_damage = 1
+        self.dmg_dealt = 0
+        self.dmg_taken = 0
+        self.dng_dodged = 0
+        self.modifier = 1
+        self.pierce = False
+        self.reverse = False
+        self.irreversible = False
+        self.invulnerable = False
 
         self.chance_cards = []
         self.used_cards = []
@@ -50,6 +58,8 @@ class Player:
         self.move = None
         self.selected_chance = False
         self.ready = False
+
+        self.winner = False
 
     @property
     def cat(self):
@@ -121,6 +131,14 @@ class Match:
         response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
         Network.send_data(opponent.username, opponent, response)
 
+    # A win condition has been met stopping the match
+    def end_match(self):
+
+        Logger.log("Match ending for " + self.player1.username + " & " +
+                   self.player2.username + ", a win condition has been met")
+
+        self.match_valid = False
+
     # Phase before prelude for handling match preparation
     def setup(self, player, request):
 
@@ -129,7 +147,7 @@ class Match:
 
             cat_id = -1
             if request.body:
-                cat_id = Network.byte_int(request.body)
+                cat_id = int(request.body)
 
             valid_cat = self.select_cat(player, cat_id)
 
@@ -150,11 +168,12 @@ class Match:
 
         elif flag == Flags.READY:
 
-            # Set the player to ready and assign random ability
+            # Set the player to ready and assign random ability and two random chance cards
             players_ready = self.player_ready(player)
 
             Ability.random_ability(player)
-            Chance.random_chances(player)
+            Chance.random_chance(player)
+            Chance.random_chance(player)
 
             # If both players are ready proceed to the next phase
             if players_ready:
@@ -214,6 +233,15 @@ class Match:
         Logger.log("Prelude phase starting for " + self.player1.username +
                    ", " + self.player2.username)
 
+        # Reset players per round stats
+        self.reset_attributes(self.player1)
+        self.reset_attributes(self.player2)
+
+        # Decrease any abilities on cooldown
+        self.decrease_cooldowns(self.player1)
+        self.decrease_cooldowns(self.player2)
+
+        # Check passive abilities
         self.use_passive_ability(self.player1, self.player1.cat)
         self.use_passive_ability(self.player1, self.player1.rability)
 
@@ -248,7 +276,7 @@ class Match:
 
             move = -1
             if request.body:
-                move = Network.byte_int(request.body)
+                move = int(request.body)
 
             valid_move = self.select_move(player, move)
 
@@ -271,7 +299,7 @@ class Match:
 
             chance = -1
             if request.body:
-                chance = Network.byte_int(request.body)
+                chance = int(request.body)
 
             valid_chance = self.select_chance(player, chance)
 
@@ -326,13 +354,19 @@ class Match:
         if self.player2.selected_chance:
             response = Network.generate_responseb(
                 Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player2.used_card)
-            Network.send_data(self.player1.username, self.player1.connection, response)
+        else:
+            response = Network.generate_responseh(Flags.REVEAL_CHANCE, Flags.ZERO_BYTE)
+
+        Network.send_data(self.player1.username, self.player1.connection, response)
 
         # Show player2 player1's chance card if they selected one
         if self.player1.selected_chance:
             response = Network.generate_responseb(
                 Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player1.used_card)
-            Network.send_data(self.player2.username, self.player2.connection, response)
+        else:
+            response = Network.generate_responseh(Flags.REVEAL_CHANCE, Flags.ZERO_BYTE)
+
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
     def show_cards(self, player, request):
 
@@ -350,6 +384,56 @@ class Match:
         Logger.log("Settle Strategies phase starting for " + self.player1.username +
                    ", " + self.player2.username)
 
+        # Use player1's chance card if pre settle
+        if self.player1.selected_chance and Chance.pre_settle(self.player1.used_card):
+            chance_map[self.player1.used_card](self.player1)
+
+        # Use player2's chance card if pre settle
+        if self.player2.selected_chance and Chance.pre_settle(self.player2.used_card):
+            chance_map[self.player2.used_card](self.player2)
+
+        player = self.get_random_player()
+        opponent = self.get_opponent(player.username)
+        self.handle_combat(player, opponent)
+        self.handle_combat(opponent, player)
+
+        # Use player1's chance card if post settle
+        if self.player1.selected_chance and Chance.post_settle(self.player1.used_card):
+
+            chance_used = chance_map[self.player1.used_card](self.player1)
+            if chance_used:
+                Chance.chance_responses(self.player1.used_card, self.player1, self.player2)
+
+        # Use player2's chance card if post settle
+        if self.player2.selected_chance and Chance.post_settle(self.player2.used_card):
+
+            chance_used = chance_map[self.player2.used_card](self.player2)
+            if chance_used:
+                Chance.chance_responses(self.player2.used_card, self.player2, self.player1)
+
+        # Send new HPs to clients
+        # Send player1 their damage taken and notify opponent as well
+        damage_taken = -self.player1.health
+        response = Network.generate_responseb(
+            Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
+        Network.send_data(self.player1.username, self.player1.connection, response)
+
+        response = Network.generate_responseb(
+            Flags.OP_GAIN_HP, Flags.ONE_BYTE, damage_taken)
+        Network.send_data(self.player2.username, self.player2.connection, response)
+
+        # Send player2 their damage taken and notify opponent as well
+        damage_taken = self.player2.health
+        response = Network.generate_responseb(
+            Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
+        Network.send_data(self.player2.username, self.player2.connection, response)
+
+        response = Network.generate_responseb(
+            Flags.OP_GAIN_HP, Flags.ONE_BYTE, damage_taken)
+        Network.send_data(self.player1.username, self.player1.connection, response)
+
+        self.check_winner()
+
     def settle_strats(self, player, request):
 
         flag = request.flag
@@ -357,19 +441,48 @@ class Match:
 
             players_ready = self.player_ready(player)
             if players_ready:
-                self.next_phase(Phases.SETTLE_STRATS)
-                self.gloria_settle_strats()
+                self.next_phase(Phases.POSTLUDE)
+                self.gloria_postlude()
 
     def gloria_postlude(self):
-        pass
 
-    def postlude(self):
-        pass
+        Logger.log("Postlude phase starting for " + self.player1.username +
+                   ", " + self.player2.username)
+
+        self.use_passive_ability(self.player1, self.player1.cat)
+        self.use_passive_ability(self.player1, self.player1.rability)
+
+        self.use_passive_ability(self.player2, self.player2.cat)
+        self.use_passive_ability(self.player2, self.player2.rability)
+
+    def postlude(self, player, request):
+
+        flag = request.flag
+        if flag == Flags.USE_ABILITY:
+            self.use_active_ability(player, request)
+
+        elif flag == Flags.READY:
+
+            players_ready = self.player_ready(player)
+            if players_ready:
+
+                self.check_winner()
+                self.next_phase(Phases.PRELUDE)
+                self.gloria_prelude()
 
     # Returns player one or two based on username
     def get_player(self, username):
 
         if self.player1.username == username:
+            return self.player1
+        else:
+            return self.player2
+
+    # Returns one of the two players randomly
+    def get_random_player(self):
+
+        randnum = random.randrange(0, 2)
+        if randnum == 0:
             return self.player1
         else:
             return self.player2
@@ -413,6 +526,23 @@ class Match:
 
         self.player1.ready = False
         self.player2.ready = False
+
+    # Reset per round game stats for a player
+    @staticmethod
+    def reset_attributes(player):
+
+        player.healed = 0
+        player.dmg_dealt = 0
+        player.dmg_taken = 0
+        player.dng_dodged = 0
+        player.modifier = 1
+        player.pierce = False
+        player.reverse = False
+        player.irreversible = False
+        player.invulnerable = False
+
+        player.move = None
+        player.selected_chance = False
 
     # Handles the user selecting a cat for the match
     @staticmethod
@@ -476,7 +606,7 @@ class Match:
 
         ability_id = -1
         if request.body:
-            ability_id = Network.byte_int(request.body)
+            ability_id = int(request.body)
 
         # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player.cat or ability_id == player.rability
@@ -502,6 +632,106 @@ class Match:
             response.append(Flags.FAILURE)
 
         Network.send_data(player.username, player.connection, response)
+
+    @staticmethod
+    def handle_combat(player, opponent):
+
+        # Handle combat scenarios for players
+
+        # If the player scratches
+        if player.move == Moves.SCRATCH:
+
+            damage = player.base_damage * player.modifier
+
+            # opponent guards
+            if opponent.move == Moves.GUARD:
+
+                # Player does not have pierce
+                if opponent.reverse and player.irreversible \
+                        or not player.pierce:
+
+                    opponent.dmg_dodged += damage
+
+                # Damage is reversed
+                elif opponent.reverse:
+
+                    player.health -= damage
+                    player.dmg_dealt += damage
+                    player.dmg_taken += damage
+
+                # Damage goes through
+                elif player.pierce:
+
+                    opponent.health -= damage
+                    opponent.dmg_taken += damage
+                    player.dmg_dealt += damage
+
+            # opponent purrs scenarios
+            elif opponent.move == Moves.PURR:
+
+                # Opponent is not invulnerable otherwise nothing happens
+                if not opponent.invulnerable:
+
+                    opponent.health -= 1
+                    opponent.dmg_taken += 1
+                    player.dmg_dealt += 1
+
+            # If the opponent is scratching or skipping
+            else:
+
+                opponent.health -= damage
+                opponent.dmg_taken += damage
+                player.dmg_dealt += damage
+
+        # If the player purrs and is invulnerable while the opponent is scratching
+        elif player.move == Moves.PURR and opponent.move == Moves.SCRATCH:
+
+            if player.invulnerable:
+
+                player.health += 1
+                player.healed += 1
+
+        # If the player purrs while the opponent does not scratch
+        elif player.move == Moves.PURR and not opponent.move == Moves.SCRATCH:
+
+            player.health += 1
+            player.healed += 1
+
+    # Decreases all the abilities on cooldown for the player by one
+    @staticmethod
+    def decrease_cooldowns(player):
+
+        cooldowns = []
+        for cooldown in player.cooldowns:
+
+            time_remaining = cooldown[1] - 1
+            if time_remaining == 0:
+                continue
+
+            new_cooldown = (cooldown[0], time_remaining)
+            cooldowns.append(new_cooldown)
+
+        player.cooldowns = cooldowns
+        Logger.log(player.username + "'s current cooldowns: " + str(cooldowns))
+
+    # Determine if a win condition has been met
+    def check_winner(self):
+
+        winner = False
+        if self.player1.health == 20 or \
+                self.player2.health == 0:
+
+            self.player1.winner = True
+            winner = True
+
+        if self.player2.health == 20 or \
+                self.player1.health == 0:
+
+            self.player2.winner = True
+            winner = True
+
+        if winner:
+            self.end_match()
 
 phase_map = {
 
@@ -582,6 +812,7 @@ class Ability:
         if phase == Phases.POSTLUDE:
 
             player.health += 1
+            player.healed += 1
             player.cooldowns.append((Abilities.Rejuvenation, 3))
 
             ability_used = True
@@ -615,8 +846,7 @@ class Ability:
         if phase == Phases.POSTLUDE:
             if player.ddodged >= 2:
 
-                chance_card = random.randrange(0, 9)
-                player.chance_cards.append(chance_card)
+                Chance.random_chance(player)
 
                 ability_used = True
                 Logger.log(player.username + " used Gentleman +1 Chance Card")
@@ -633,8 +863,7 @@ class Ability:
         if phase == Phases.POSTLUDE:
             if player.ddealt >= 2:
 
-                chance_card = random.randrange(0, 9)
-                player.chance_cards.append(chance_card)
+                Chance.random_chance(player)
 
                 ability_used = True
                 Logger.log(player.username + " used Attacker +1 Chance Card")
@@ -713,19 +942,19 @@ class Chances(IntEnum):
 
 class Chance:
 
+    # Assigns a random chance card to the specified player
     @staticmethod
-    def random_chances(player):
+    def random_chance(player):
 
         chance_card = random.randrange(0, 9)
         player.chance_cards.append(chance_card)
 
-        chance_card = random.randrange(0, 9)
-        player.chance_cards.append(chance_card)
-
+    # Checks if the player has the chance card they selected to use
     @staticmethod
     def has_chance(player, chance):
         return player.chance_cards.count(chance) != 0
 
+    # Check if the chance corresponds with the selected move
     @staticmethod
     def matches_move(player, chance):
 
@@ -743,69 +972,167 @@ class Chance:
 
         return matches
 
+    # Check if a particular chance should be used before settling the strategies
+    @staticmethod
+    def pre_settle(chance):
+
+        return chance == Chances.REVERSE_SCRATCH or \
+               chance == Chances.NO_REVERSE or \
+               chance == Chances.NO_GUARD or \
+               chance == Chances.DOUBLE_SCRATCH or \
+               chance == Chances.GUARANTEED_PURR
+
+    # Check if a particular chance should be used after settlign the strategies
+    @staticmethod
+    def post_settle(chance):
+
+        return chance == Chances.DOUBLE_PURR or \
+               chance == Chances.PURR_DRAW or \
+               chance == Chances.GUARD_HEAL or \
+               chance == Chances.GUARD_DRAW
+
     # Chance 00 - Double Purring
     # Gain 2 HP if you don't get attacked
-    def chance_00(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_00(player):
+
+        chance_used = False
+        if player.dtaken == 0:
+
+            player.health += 2
+            player.healed += 2
+            Logger.log(player.username + " using Purr Chance 00 Double Purring")
+            Logger.log(player.username + " gained two health points for not taking damage")
+            chance_used = True
+
+        else:
+            Logger.log(player.username + " could not use Purr Chance 00 Double Purring")
+
+        return chance_used
 
     # Chance 01 - Guaranteed Purring
     # Gain 1 HP no matter what
-    def chance_01(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_01(player):
+
+        player.health += 1
+        player.healed += 1
+        player.invulnerable = True
+        Logger.log(player.username + " using Purr Chance 01 Guaranteed Purring")
+        Logger.log(player.username + " gained one health point and is now invulnerable")
 
     # Chance 02 - Purr and Draw
     # Gain 1 chance card if you heal
-    def chance_02(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_02(player):
+
+        chance_used = False
+        if player.healed > 0:
+
+            Chance.random_chance(player)
+            Logger.log(player.username + " using Purr Chance 02 Purr and Draw")
+            Logger.log(player.username + " gained one chance card for healing")
+            chance_used = True
+
+        else:
+            Logger.log(player.username + " could not use Purr Chance 02 Purr and Draw")
+
+        return chance_used
 
     # Chance 03 - Reverse Scratch
     # Reverse the damage
-    def chance_03(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_03(player):
+
+        player.reverse = True
+        Logger.log(player.username + " using Guard Chance 03 Reverse Scratch")
+        Logger.log(player.username + "'is reversing incoming damage")
 
     # Chance 04 - Guard and Heal
     # Gain 1 HP if you dodge
-    def chance_04(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_04(player):
+
+        chance_used = False
+        if player.ddodged > 0:
+
+            player.health += 1
+            player.healed += 1
+            Logger.log(player.username + " using Guard Chance 04 Guard and Heal")
+            Logger.log(player.username + " gained one health point for dodging")
+            chance_used = True
+
+        else:
+            Logger.log(player.username + " could not use Guard Chance 04 Guard and Heal")
+
+        return chance_used
 
     # Chance 05 - Guard and Draw
     # Gain 1 chance card if you dodge
-    def chance_05(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_05(player):
+
+        chance_used = False
+        if player.ddodged > 0:
+
+            Chance.random_chance(player)
+            Logger.log(player.username + " using Guard Chance 05 Guard and Draw")
+            Logger.log(player.username + " gained one chance card for dodging")
+            chance_used = True
+
+        else:
+            Logger.log(player.username + " could not use Guard Chance 05 Guard and Draw")
+
+        return chance_used
 
     # Chance 06 - Cant't reverse
     # Can't reverse the damage
-    def chance_06(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_06(player):
+
+        player.irreversible = True
+        Logger.log(player.username + " using Scratch Chance 06 Can't Reverse")
+        Logger.log(player.username + "'s attack can't be reversed")
 
     # Chance 07 - Can't Guard
     # Scratch can't be dodged
-    def chance_07(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_07(player):
+
+        player.pierce = True
+        Logger.log(player.username + " using Scratch Chance 07 Can't Guard")
+        Logger.log(player.username + "'s attack can't be dodged")
 
     # Chance 08 - Double Scratch
     # Scratch twice - x2 Damage
-    def chance_08(self, move, player):
-        # TODO
-        pass
+    @staticmethod
+    def chance_08(player):
 
-    chance_map = {
+        player.modifier *= 2
+        Logger.log(player.username + " using Scratch Chance 08 Double Scratch")
+        Logger.log(player.username + "'s Attack Modifier: " + str(player.modifier))
 
-        Chances.DOUBLE_PURR: chance_00,
-        Chances.GUARANTEED_PURR: chance_01,
-        Chances.PURR_DRAW: chance_02,
-        Chances.REVERSE_SCRATCH: chance_03,
-        Chances.GUARD_HEAL: chance_04,
-        Chances.GUARD_DRAW: chance_05,
-        Chances.NO_REVERSE: chance_06,
-        Chances.NO_GUARD: chance_07,
-        Chances.DOUBLE_SCRATCH: chance_08
-    }
+    @staticmethod
+    def chance_responses(chance_id, player, opponent):
+
+        if chance_id == Chances.GUARD_DRAW or \
+                chance_id == Chances.PURR_DRAW:
+
+            response = Network.generate_responseb(Flags.GAIN_CHANCE, Flags.ONE_BYTE, player.chance_card)
+            Network.send_data(player.username, player.connection, response)
+
+            response = Network.generate_responseh(Flags.OP_GAIN_CHANCE, Flags.ZERO_BYTE)
+            Network.send_data(opponent.username, opponent.connection, response)
+
+chance_map = {
+
+    Chances.DOUBLE_PURR: Chance.chance_00,
+    Chances.GUARANTEED_PURR: Chance.chance_01,
+    Chances.PURR_DRAW: Chance.chance_02,
+    Chances.REVERSE_SCRATCH: Chance.chance_03,
+    Chances.GUARD_HEAL: Chance.chance_04,
+    Chances.GUARD_DRAW: Chance.chance_05,
+    Chances.NO_REVERSE: Chance.chance_06,
+    Chances.NO_GUARD: Chance.chance_07,
+    Chances.DOUBLE_SCRATCH: Chance.chance_08
+}

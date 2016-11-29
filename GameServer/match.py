@@ -59,6 +59,8 @@ class Player:
         self.selected_chance = False
         self.ready = False
 
+        self.winner = False
+
     @property
     def cat(self):
         return self.__cat
@@ -128,6 +130,14 @@ class Match:
         # The disconnected player gets a loss - notify the winning player
         response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
         Network.send_data(opponent.username, opponent, response)
+
+    # A win condition has been met stopping the match
+    def end_match(self):
+
+        Logger.log("Match ending for " + self.player1.username + " & " +
+                   self.player2.username + ", a win condition has been met")
+
+        self.match_valid = False
 
     # Phase before prelude for handling match preparation
     def setup(self, player, request):
@@ -422,6 +432,8 @@ class Match:
             Flags.OP_GAIN_HP, Flags.ONE_BYTE, -damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
 
+        self.check_winner()
+
     def settle_strats(self, player, request):
 
         flag = request.flag
@@ -454,6 +466,7 @@ class Match:
             players_ready = self.player_ready(player)
             if players_ready:
 
+                self.check_winner()
                 self.next_phase(Phases.PRELUDE)
                 self.gloria_prelude()
 
@@ -700,6 +713,25 @@ class Match:
 
         player.cooldowns = cooldowns
         Logger.log(player.username + "'s current cooldowns: " + str(cooldowns))
+
+    # Determine if a win condition has been met
+    def check_winner(self):
+
+        winner = False
+        if self.player1.health == 20 or \
+                self.player2.health == 0:
+
+            self.player1.winner = True
+            winner = True
+
+        if self.player2.health == 20 or \
+                self.player1.health == 0:
+
+            self.player2.winner = True
+            winner = True
+
+        if winner:
+            self.end_match()
 
 phase_map = {
 

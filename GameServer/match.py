@@ -227,6 +227,11 @@ class Match:
         self.reset_attributes(self.player1)
         self.reset_attributes(self.player2)
 
+        # Decrease any abilities on cooldown
+        self.decrease_cooldowns(self.player1)
+        self.decrease_cooldowns(self.player2)
+
+        # Check passive abilities
         self.use_passive_ability(self.player1, self.player1.cat)
         self.use_passive_ability(self.player1, self.player1.rability)
 
@@ -398,7 +403,7 @@ class Match:
 
         # Send new HPs to clients
         # Send player1 their damage taken and notify opponent as well
-        damage_taken = -self.player1.dmg_taken
+        damage_taken = -self.player1.dmg_taken + self.player1.healed
         response = Network.generate_responseb(
             Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
@@ -408,7 +413,7 @@ class Match:
         Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Send player2 their damage taken and notify opponent as well
-        damage_taken = -self.player2.dmg_taken
+        damage_taken = -self.player2.dmg_taken + self.player2.healed
         response = Network.generate_responseb(
             Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player2.username, self.player2.connection, response)
@@ -448,6 +453,7 @@ class Match:
 
             players_ready = self.player_ready(player)
             if players_ready:
+
                 self.next_phase(Phases.PRELUDE)
                 self.gloria_prelude()
 
@@ -678,10 +684,22 @@ class Match:
             player.health += 1
             player.healed += 1
 
-    def decrease_cooldowns(self):
+    # Decreases all the abilities on cooldown for the player by one
+    @staticmethod
+    def decrease_cooldowns(player):
 
-        # TODO
-        pass
+        cooldowns = []
+        for cooldown in player.cooldowns:
+
+            time_remaining = cooldown[1] - 1
+            if time_remaining == 0:
+                continue
+
+            new_cooldown = (cooldown[0], time_remaining)
+            cooldowns.append(new_cooldown)
+
+        player.cooldowns = cooldowns
+        Logger.log(player.username + "'s current cooldowns: " + str(cooldowns))
 
 phase_map = {
 

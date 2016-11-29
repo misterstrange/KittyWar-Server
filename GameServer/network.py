@@ -13,6 +13,7 @@ class Flags(IntEnum):
 
     FAILURE = 0
     SUCCESS = 1
+    DRAW = 2
     ERROR = 3
 
     ZERO_BYTE = 0

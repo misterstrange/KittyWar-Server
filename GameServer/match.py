@@ -413,7 +413,7 @@ class Match:
 
         # Send new HPs to clients
         # Send player1 their damage taken and notify opponent as well
-        damage_taken = -self.player1.dmg_taken + self.player1.healed
+        damage_taken = -self.player1.health
         response = Network.generate_responseb(
             Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
@@ -423,7 +423,7 @@ class Match:
         Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Send player2 their damage taken and notify opponent as well
-        damage_taken = -self.player2.dmg_taken + self.player2.healed
+        damage_taken = self.player2.health
         response = Network.generate_responseb(
             Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player2.username, self.player2.connection, response)

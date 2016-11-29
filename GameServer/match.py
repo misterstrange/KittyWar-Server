@@ -419,7 +419,7 @@ class Match:
         Network.send_data(self.player1.username, self.player1.connection, response)
 
         response = Network.generate_responseb(
-            Flags.OP_GAIN_HP, Flags.ONE_BYTE, -damage_taken)
+            Flags.OP_GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player2.username, self.player2.connection, response)
 
         # Send player2 their damage taken and notify opponent as well
@@ -429,7 +429,7 @@ class Match:
         Network.send_data(self.player2.username, self.player2.connection, response)
 
         response = Network.generate_responseb(
-            Flags.OP_GAIN_HP, Flags.ONE_BYTE, -damage_taken)
+            Flags.OP_GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
 
         self.check_winner()

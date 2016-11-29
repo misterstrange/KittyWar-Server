@@ -40,13 +40,10 @@ class Session(Thread):
 
             # Process clients request and check if successful
             request = Network.parse_request(self.client, data)
-            successful = self.process_request(request)
-            if not successful:
-                break
+            self.process_request(request)
 
         # Start shutting down session thread
         self.logout()
-        self.kill()
         self.client.close()
 
         Logger.log(self.userprofile['username'] + " disconnected")
@@ -81,14 +78,13 @@ class Session(Thread):
                     self.userprofile['username'] + " is not authorized to use flag " +
                     str(flag) + ", closing this connection")
 
-                return False
+                self.kill()
 
-        request_successful = True
         # Check if the flag is valid
         if Flags.valid_flag(flag):
 
             if flag in request_map:
-                request_successful = request_map[flag](self, request)
+                request_map[flag](self, request)
 
             elif self.match:
 
@@ -104,8 +100,6 @@ class Session(Thread):
             Logger.log(
                 "Server does not support flag " + str(flag)
                 + ", closing this connection")
-
-        return request_successful
 
     def verified(self, request):
 
@@ -126,7 +120,7 @@ class Session(Thread):
 
         # If the user does not send username or connection error close connection
         if username is None:
-            return False
+            self.kill()
 
         # Log the username
         Logger.log("Body: " + username)
@@ -162,10 +156,9 @@ class Session(Thread):
             # Username is verified through django server so force close connection
             Logger.log(
                 "No username/id found for " + username + ", force closing connection")
-            return False
+            self.kill()
 
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Logs the user out by deleting their token and ending the session
     def logout(self, request=None):
@@ -188,7 +181,7 @@ class Session(Thread):
             response.append(Flags.FAILURE)
 
         Network.send_data(self.userprofile['username'], self.client, response)
-        return False
+        self.kill()
 
     def _user_profile(self):
 
@@ -220,15 +213,12 @@ class Session(Thread):
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
 
-        return True
-
     # Sends all card data to the client
     def all_cards(self, request):
 
         body = str(self.card_information)
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Sends all cat card data to the client
     def cat_cards(self, request):
@@ -236,7 +226,6 @@ class Session(Thread):
         body = str(self.card_information['cats'])
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Sends all moveset card data to the client
     def basic_cards(self, request):
@@ -244,7 +233,6 @@ class Session(Thread):
         body = str(self.card_information['moves'])
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Sends all chance card data to the client
     def chance_cards(self, request):
@@ -252,7 +240,6 @@ class Session(Thread):
         body = str(self.card_information['chances'])
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Sends all ability card data to the client
     def ability_cards(self, request):
@@ -260,7 +247,6 @@ class Session(Thread):
         body = str(self.card_information['abilities'])
         response = Network.generate_responseb(request.flag, len(body), body)
         Network.send_data(self.userprofile['username'], self.client, response)
-        return True
 
     # Finds a match and records match results once match is finished
     def find_match(self, request):
@@ -284,8 +270,6 @@ class Session(Thread):
         # At this point a match has been found so notify client
         response = Network.generate_responseb(request.flag, Flags.ONE_BYTE, Flags.SUCCESS)
         Network.send_data(self.userprofile['username'], self.client, response)
-
-        return True
 
 request_map = {
 

@@ -302,14 +302,14 @@ class Match:
                 if self.player1.move is not None and \
                         self.player2.move is not None:
 
-                    self.show_cards()
+                    self.gloria_show_cards()
 
                 else:
 
                     Logger.log("One of the players did not select a move - Killing match")
                     self.kill_match()
 
-    def show_cards(self):
+    def gloria_show_cards(self):
 
         Logger.log("Show Cards phase starting for " + self.player1.username +
                    ", " + self.player2.username)
@@ -334,14 +334,31 @@ class Match:
                 Flags.REVEAL_CHANCE, Flags.ONE_BYTE, self.player1.used_card)
             Network.send_data(self.player2.username, self.player2.connection, response)
 
-        self.next_phase(Phases.SETTLE_STRATS)
-        self.settle_strats()
+    def show_cards(self, player, request):
 
-    def settle_strats(self):
+        flag = request.flag
+        if flag == Flags.READY:
+
+            players_ready = self.player_ready(player)
+            if players_ready:
+
+                self.next_phase(Phases.SETTLE_STRATS)
+                self.gloria_settle_strats()
+
+    def gloria_settle_strats(self):
 
         Logger.log("Settle Strategies phase starting for " + self.player1.username +
                    ", " + self.player2.username)
-        self.kill_match()
+
+    def settle_strats(self, player, request):
+
+        flag = request.flag
+        if flag == Flags.READY:
+
+            players_ready = self.player_ready(player)
+            if players_ready:
+                self.next_phase(Phases.SETTLE_STRATS)
+                self.gloria_settle_strats()
 
     def gloria_postlude(self):
         pass
@@ -491,6 +508,8 @@ phase_map = {
     Phases.SETUP: Match.setup,
     Phases.PRELUDE: Match.prelude,
     Phases.ENACT_STRATS: Match.enact_strats,
+    Phases.SHOW_CARDS: Match.show_cards,
+    Phases.SETTLE_STRATS: Match.settle_strats,
     Phases.POSTLUDE: Match.postlude
 }
 

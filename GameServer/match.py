@@ -44,7 +44,7 @@ class Player:
         self.base_damage = 1
         self.dmg_dealt = 0
         self.dmg_taken = 0
-        self.dng_dodged = 0
+        self.dmg_dodged = 0
         self.modifier = 1
         self.pierce = False
         self.reverse = False
@@ -98,6 +98,8 @@ class Match:
 
         self.lock = Lock()
         self.match_valid = True
+        self.result = None
+        self.winner = None
 
         self.phase = Phases.SETUP
         self.player1 = None
@@ -116,6 +118,7 @@ class Match:
     def kill_match(self):
 
         self.match_valid = False
+        self.result = Flags.ERROR
         self.alert_players(Flags.END_MATCH, Flags.ONE_BYTE, Flags.ERROR)
 
     def disconnect(self, username):
@@ -138,6 +141,33 @@ class Match:
                    self.player2.username + ", a win condition has been met")
 
         self.match_valid = False
+
+        self.result = Flags.SUCCESS
+        if self.player1.winner and self.player2.winner:
+
+            Logger.log("The match is draw no winner")
+            self.result = Flags.DRAW
+            self.alert_players(Flags.END_MATCH, Flags.ONE_BYTE, Flags.DRAW)
+
+        elif self.player1.winner:
+
+            Logger.log(self.player1.username + " has won the match")
+            self.winner = self.player1
+            response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
+            Network.send_data(self.player1.username, self.player1.connection, response)
+
+            response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.FAILURE)
+            Network.send_data(self.player2.username, self.player2.connection, response)
+
+        else:
+
+            Logger.log(self.player2.username + " has won the match")
+            self.winner = self.player2
+            response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.SUCCESS)
+            Network.send_data(self.player2.username, self.player2.connection, response)
+
+            response = Network.generate_responseb(Flags.END_MATCH, Flags.ONE_BYTE, Flags.FAILURE)
+            Network.send_data(self.player1.username, self.player1.connection, response)
 
     # Phase before prelude for handling match preparation
     def setup(self, player, request):
@@ -413,7 +443,7 @@ class Match:
 
         # Send new HPs to clients
         # Send player1 their damage taken and notify opponent as well
-        damage_taken = -self.player1.health
+        damage_taken = self.player1.health
         response = Network.generate_responseb(
             Flags.GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
@@ -431,6 +461,19 @@ class Match:
         response = Network.generate_responseb(
             Flags.OP_GAIN_HP, Flags.ONE_BYTE, damage_taken)
         Network.send_data(self.player1.username, self.player1.connection, response)
+
+        # Send all chance cards each player has
+        # Send for player1
+        response = Network.generate_responseh(Flags.GAIN_CHANCES, len(self.player1.chance_cards))
+        for chance_card in self.player1.chance_cards:
+            response.append(chance_card)
+        Network.send_data(self.player1.username, self.player1.connection, response)
+
+        # Send for player2
+        response = Network.generate_responseh(Flags.GAIN_CHANCES, len(self.player2.chance_cards))
+        for chance_card in self.player2.chance_cards:
+            response.append(chance_card)
+        Network.send_data(self.player2.username, self.player2.connection, response)
 
         self.check_winner()
 
@@ -534,7 +577,7 @@ class Match:
         player.healed = 0
         player.dmg_dealt = 0
         player.dmg_taken = 0
-        player.dng_dodged = 0
+        player.dmg_dodged = 0
         player.modifier = 1
         player.pierce = False
         player.reverse = False
@@ -844,7 +887,7 @@ class Ability:
 
         ability_used = False
         if phase == Phases.POSTLUDE:
-            if player.ddodged >= 2:
+            if player.dmg_dodged >= 2:
 
                 Chance.random_chance(player)
 
@@ -861,7 +904,7 @@ class Ability:
 
         ability_used = False
         if phase == Phases.POSTLUDE:
-            if player.ddealt >= 2:
+            if player.dmg_dealt >= 2:
 
                 Chance.random_chance(player)
 
@@ -997,7 +1040,7 @@ class Chance:
     def chance_00(player):
 
         chance_used = False
-        if player.dtaken == 0:
+        if player.dmg_taken == 0:
 
             player.health += 2
             player.healed += 2
@@ -1054,7 +1097,7 @@ class Chance:
     def chance_04(player):
 
         chance_used = False
-        if player.ddodged > 0:
+        if player.dmg_dodged > 0:
 
             player.health += 1
             player.healed += 1
@@ -1073,7 +1116,7 @@ class Chance:
     def chance_05(player):
 
         chance_used = False
-        if player.ddodged > 0:
+        if player.dmg_dodged > 0:
 
             Chance.random_chance(player)
             Logger.log(player.username + " using Guard Chance 05 Guard and Draw")

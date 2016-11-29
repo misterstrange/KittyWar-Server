@@ -129,7 +129,7 @@ class Match:
 
             cat_id = -1
             if request.body:
-                cat_id = int(request.body)
+                cat_id = Network.byte_int(request.body)
 
             valid_cat = self.select_cat(player, cat_id)
 
@@ -248,7 +248,7 @@ class Match:
 
             move = -1
             if request.body:
-                move = int(request.body)
+                move = Network.byte_int(request.body)
 
             valid_move = self.select_move(player, move)
 
@@ -271,7 +271,7 @@ class Match:
 
             chance = -1
             if request.body:
-                chance = int(request.body)
+                chance = Network.byte_int(request.body)
 
             valid_chance = self.select_chance(player, chance)
 
@@ -305,6 +305,8 @@ class Match:
                     self.show_cards()
 
                 else:
+
+                    Logger.log("One of the players did not select a move - Killing match")
                     self.kill_match()
 
     def show_cards(self):
@@ -457,7 +459,7 @@ class Match:
 
         ability_id = -1
         if request.body:
-            ability_id = int(request.body)
+            ability_id = Network.byte_int(request.body)
 
         # Verify the ability is useable - the player has the ability and not on cooldown
         useable = ability_id == player.cat or ability_id == player.rability

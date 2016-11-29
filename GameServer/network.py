@@ -75,6 +75,13 @@ class Network:
 
         return _3byte
 
+    # Used to change the request body into an int
+    @staticmethod
+    def byte_int(byte):
+
+        byte = byte.encode('utf-8')
+        return int.from_bytes(byte, byteorder='big')
+
     @staticmethod
     def parse_request(client, data):
 
@@ -127,11 +134,15 @@ class Network:
 
         db = Network.db_connection()
 
+        result = None
         try:
             with db.cursor(DictCursor) as cursor:
 
                 cursor.execute(query)
                 result = cursor.fetchall()
+        except:
+            print("The following query did not properly execute: " + query)
+            Logger.log("The following query did not properly execute: " + query)
 
         finally:
             db.close()
